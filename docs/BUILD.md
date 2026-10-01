@@ -35,3 +35,11 @@ Commission with your Matter controller over BLE onto its Thread network. Develop
 Find the device's routable IPv6 address in the border router/Thread integration. Open `http://[DEVICE_IPV6]:8080/`. Some routers/controllers only expose link-local or mesh-local addresses; a routable OMR address and host IPv6 route are needed. See DIAGNOSTICS.md.
 
 No network reset or re-commission command is exposed in this milestone. Recovery if the Thread network is lost uses USB/physical reset tooling; wiping NVS removes the Matter fabric. Do not erase NVS as a routine update.
+
+## Download contents
+
+The **espyspa-matter-development-esp32c6** artifact contains the application, bootloader, partition table, `ota_data_initial.bin` and `flasher_args.json`. Use the offsets in that JSON for a complete initial flash. The pipeline checks that every image referenced by the flashing metadata exists before uploading.
+
+The **espyspa-matter-debug-esp32c6** artifact contains the matching ELF with debug symbols. It is useful for decoding crash backtraces and is not required for flashing. Keep it with the corresponding firmware version when investigating a crash.
+
+For application-only updates, retain the existing OTA metadata: do not flash `ota_data_initial.bin`. It initializes the OTA selection partition for a fresh installation.
