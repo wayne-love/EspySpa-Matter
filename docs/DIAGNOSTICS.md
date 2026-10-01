@@ -13,7 +13,7 @@ The snapshot includes:
 - Firmware version, uptime, reset reason, free/minimum heap.
 - Validity/freshness and age of the last confirmed state; failed polling retains last known data but marks it stale.
 - Water temperature, setpoint, light/heating/sleep indicators, pump modes/capability masks/readiness and blower mode.
-- Poll and command counters, latest error, and last 16 UART/request transactions. RX history is truncated to 1024 bytes per transaction; complete latest RF is bounded to 8192 bytes.
+- Queue depth, poll and command counters, latest error, and last 16 UART/request transactions (including queued and rejected requests). RX history is truncated to 1024 bytes per transaction; complete latest RF is bounded to 8192 bytes.
 - Matter fabric count/latest numeric device event; Thread numeric role and IPv6 addresses. Roles: 0 disabled, 1 detached, 2 child, 3 router, 4 leader.
 
 `last_known_spa_state` is not evidence of live connectivity: always check `fresh`. Before the first successful poll, state fields are placeholders and state age is null. No credentials are logged. Standard Matter network diagnostic clusters offer a second authenticated channel through your controller.

@@ -12,7 +12,7 @@ bool publishing = false; // Only accessed on the CHIP task.
 std::atomic<int> last_event{0};
 std::atomic<unsigned> fabrics{0};
 std::atomic<bool> publish_pending{false};
-void event(const chip::DeviceLayer::ChipDeviceEvent *e, intptr_t) {
+void app_matter_event(const chip::DeviceLayer::ChipDeviceEvent *e, intptr_t) {
     last_event = e->Type;
     chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
         fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
@@ -46,7 +46,8 @@ void publish(intptr_t) {
     auto s = snapshot(); publishing = true;
     bool fresh = s.valid && now_ms() - s.last_valid_ms <= 15000;
     update(thermostat_id, Thermostat::Id, Thermostat::Attributes::LocalTemperature::Id,
-           fresh ? esp_matter_nullable_int16(s.state.water_tenths * 10) : esp_matter_nullable_int16(nullptr));
+           fresh ? esp_matter_nullable_int16(s.state.water_tenths * 10) : esp_matter_nullable_int16(nullable<int16_t>()));
+    if (fresh) update(thermostat_id, Thermostat::Id, Thermostat::Attributes::ThermostatRunningState::Id, esp_matter_uint16(s.state.heating ? 1 : 0));
     if (s.last_valid_ms != 0) {
         update(thermostat_id, Thermostat::Id, Thermostat::Attributes::OccupiedHeatingSetpoint::Id, esp_matter_int16(s.state.setpoint_tenths * 10));
         update(light_id, OnOff::Id, OnOff::Attributes::OnOff::Id, esp_matter_bool(s.state.light));
@@ -78,22 +79,23 @@ void matter_start() {
     auto ep = endpoint::thermostat::create(node, &tc, ENDPOINT_FLAG_NONE, nullptr); configASSERT(ep);
     thermostat_id = endpoint::get_id(ep);
     auto cl = cluster::get(ep, Thermostat::Id);
-    configASSERT(cluster::thermostat::attribute::create_abs_min_heat_setpoint_limit(cl, 500));
-    configASSERT(cluster::thermostat::attribute::create_abs_max_heat_setpoint_limit(cl, 4100));
-    configASSERT(cluster::thermostat::attribute::create_min_heat_setpoint_limit(cl, 500));
-    configASSERT(cluster::thermostat::attribute::create_max_heat_setpoint_limit(cl, 4100));
+    ESP_ERROR_CHECK(cluster::thermostat::attribute::create_abs_min_heat_setpoint_limit(cl, 500) ? ESP_OK : ESP_ERR_NO_MEM);
+    ESP_ERROR_CHECK(cluster::thermostat::attribute::create_abs_max_heat_setpoint_limit(cl, 4100) ? ESP_OK : ESP_ERR_NO_MEM);
+    ESP_ERROR_CHECK(cluster::thermostat::attribute::create_min_heat_setpoint_limit(cl, 500) ? ESP_OK : ESP_ERR_NO_MEM);
+    ESP_ERROR_CHECK(cluster::thermostat::attribute::create_max_heat_setpoint_limit(cl, 4100) ? ESP_OK : ESP_ERR_NO_MEM);
+    ESP_ERROR_CHECK(cluster::thermostat::attribute::create_thermostat_running_state(cl, 0) ? ESP_OK : ESP_ERR_NO_MEM);
     endpoint::on_off_light::config_t lc;
     auto light = endpoint::on_off_light::create(node, &lc, ENDPOINT_FLAG_NONE, nullptr); configASSERT(light);
     light_id = endpoint::get_id(light);
     for (auto &id : pump_ids) id = create_switch(node);
     blower_id = create_switch(node);
     esp_openthread_platform_config_t ot = {
-        .radio_config = ESP_OPENTHREAD_DEFAULT_RADIO_CONFIG(),
-        .host_config = ESP_OPENTHREAD_DEFAULT_HOST_CONFIG(),
-        .port_config = ESP_OPENTHREAD_DEFAULT_PORT_CONFIG(),
+        .radio_config = {.radio_mode = RADIO_MODE_NATIVE},
+        .host_config = {},
+        .port_config = {.storage_partition_name = "nvs", .netif_queue_size = 10, .task_queue_size = 10},
     };
     set_openthread_platform_config(&ot);
-    ESP_ERROR_CHECK(esp_matter::start(event));
+    ESP_ERROR_CHECK(esp_matter::start(app_matter_event));
     chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
         fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
     }, 0);

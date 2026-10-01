@@ -8,6 +8,7 @@ struct Snapshot {
     spa::State state;
     bool valid = false;
     uint64_t last_valid_ms = 0;
+    uint32_t queued_commands = 0;
     uint32_t polls_ok = 0, polls_failed = 0, commands_ok = 0, commands_failed = 0;
     std::string raw, error;
     std::vector<Transaction> transactions;

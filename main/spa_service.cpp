@@ -80,15 +80,23 @@ void worker(void *) {
 }
 uint64_t now_ms() { return esp_timer_get_time() / 1000; }
 Snapshot snapshot() {
-    xSemaphoreTake(mutex, portMAX_DELAY); auto s = current; xSemaphoreGive(mutex); return s;
+    xSemaphoreTake(mutex, portMAX_DELAY); auto s = current; xSemaphoreGive(mutex);
+    s.queued_commands = uxQueueMessagesWaiting(requests);
+    return s;
 }
 esp_err_t submit(spa::Request r) {
     auto s = snapshot();
-    if (!s.valid || now_ms() - s.last_valid_ms > 15000) return ESP_ERR_INVALID_STATE;
+    auto rejected = [&](esp_err_t result, const std::string &why) {
+        record("rejected:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value), "", why);
+        return result;
+    };
+    if (!s.valid || now_ms() - s.last_valid_ms > 15000) return rejected(ESP_ERR_INVALID_STATE, "spa state stale or unavailable");
     spa::Command c; std::string error;
-    if (!spa::command(s.state, r, c, error)) return ESP_ERR_INVALID_ARG;
+    if (!spa::command(s.state, r, c, error)) return rejected(ESP_ERR_INVALID_ARG, error);
     // Queue all requests, including apparent no-ops: an earlier queued write may change state.
-    return xQueueSend(requests, &r, 0) == pdTRUE ? ESP_OK : ESP_ERR_NO_MEM;
+    if (xQueueSend(requests, &r, 0) != pdTRUE) return rejected(ESP_ERR_NO_MEM, "command queue full");
+    record("queued:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value), "", "accepted; not yet confirmed");
+    return ESP_OK;
 }
 void spa_start() {
     mutex = xSemaphoreCreateMutex(); requests = xQueueCreate(8, sizeof(spa::Request));
@@ -101,4 +109,4 @@ void spa_start() {
     ESP_ERROR_CHECK(uart_driver_install(port, 4096, 0, 0, nullptr, 0));
     // Worker starts only after Matter initialization; see app_main.
 }
-extern "C" void spa_worker_start() { configASSERT(xTaskCreate(worker, "spa_uart", 12288, nullptr, 5, nullptr) == pdPASS); }
+extern "C" void spa_worker_start() { ESP_ERROR_CHECK(xTaskCreate(worker, "spa_uart", 12288, nullptr, 5, nullptr) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM); }

@@ -17,7 +17,7 @@ const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8">
 <script>let timer,latest;const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/api/diagnostics',{headers:{Authorization:'Bearer '+el('token').value},cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);latest=await r.json();el('data').textContent=JSON.stringify(latest,null,2);el('status').textContent=latest.fresh?'Live spa state':'STALE / unavailable — see errors';}catch(e){el('status').textContent='Connection failed: '+e.message;}}el('connect').onclick=()=>{clearInterval(timer);refresh();timer=setInterval(refresh,5000);};el('download').onclick=()=>{if(!latest)return;const a=document.createElement('a');const u=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}));a.href=u;a.download='spa-diagnostics.json';a.click();URL.revokeObjectURL(u);};</script></html>)HTML";
 bool authenticated(httpd_req_t *req) {
     const char *token = CONFIG_SPA_DIAGNOSTIC_TOKEN;
-    if (strlen(token) < 24) return false;
+    if (strlen(token) < 24 || strlen(token) > 128) return false;
     char header[160];
     if (httpd_req_get_hdr_value_str(req, "Authorization", header, sizeof(header)) != ESP_OK) return false;
     std::string expected = std::string("Bearer ") + token;
@@ -61,6 +61,7 @@ esp_err_t diagnostic(httpd_req_t *req) {
         cJSON_AddBoolToObject(item, "ready", s.state.pump_ready[p]);
     }
     auto counters = cJSON_AddObjectToObject(root, "counters");
+    cJSON_AddNumberToObject(counters, "queued_commands", s.queued_commands);
     cJSON_AddNumberToObject(counters, "polls_ok", s.polls_ok);
     cJSON_AddNumberToObject(counters, "polls_failed", s.polls_failed);
     cJSON_AddNumberToObject(counters, "commands_confirmed", s.commands_ok);
