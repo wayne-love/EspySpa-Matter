@@ -1,0 +1,42 @@
+name: Validate ESP32-C6 migration
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tests/run.sh
+  firmware:
+    runs-on: ubuntu-latest
+    container: espressif/esp-matter:release-v1.4.2
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Matter over Thread firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$ESP_MATTER_PATH"
+          git config --global --add safe.directory "$ESP_MATTER_PATH"
+          git fetch --depth 1 origin 4cedd4ad40821933d6cc237e80ab6604f2953fb0
+          git checkout --detach FETCH_HEAD
+          git submodule update --init --depth 1
+          cd "$GITHUB_WORKSPACE"
+          source "$IDF_PATH/export.sh"
+          source "$ESP_MATTER_PATH/export.sh"
+          idf.py set-target esp32c6
+          idf.py build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: espyspa-matter-development-esp32c6
+          path: |
+            build/espyspa_matter.bin
+            build/espyspa_matter.elf
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/flasher_args.json
+          if-no-files-found: error

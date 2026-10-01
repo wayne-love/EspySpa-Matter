@@ -1,0 +1,23 @@
+# Network diagnostics
+
+Normal diagnostics use HTTP over IPv6 on **Thread**, port **8080**. Wi-Fi is disabled. The border router must route the Thread device's OMR IPv6 address to your computer. The device must be commissioned and attached; loss of Thread connectivity prevents this network-only diagnostic channel from working.
+
+1. Discover the routable device address from the border router or Matter/Thread integration.
+2. Browse to `http://[IPv6-address]:8080/`.
+3. Enter your diagnostic token and select Connect. The page refreshes every five seconds and supports downloading the current JSON snapshot.
+
+The token stays in the page's memory/input; it is not saved in browser storage or included in downloaded JSON. No remote write, reboot, arbitrary UART command, commissioning credential or Thread dataset is exposed. HTTP does **not** provide TLS: the token and diagnostic data are visible to parties with access to routed traffic. Use a trusted LAN/VPN; do not forward port 8080 to the Internet. The SPA API is disabled with an empty/short token. The static page itself is public but contains no live state.
+
+The snapshot includes:
+
+- Firmware version, uptime, reset reason, free/minimum heap.
+- Validity/freshness and age of the last confirmed state; failed polling retains last known data but marks it stale.
+- Water temperature, setpoint, light/heating/sleep indicators, pump modes/capability masks/readiness and blower mode.
+- Poll and command counters, latest error, and last 16 UART/request transactions. RX history is truncated to 1024 bytes per transaction; complete latest RF is bounded to 8192 bytes.
+- Matter fabric count/latest numeric device event; Thread numeric role and IPv6 addresses. Roles: 0 disabled, 1 detached, 2 child, 3 router, 4 leader.
+
+`last_known_spa_state` is not evidence of live connectivity: always check `fresh`. Before the first successful poll, state fields are placeholders and state age is null. No credentials are logged. Standard Matter network diagnostic clusters offer a second authenticated channel through your controller.
+
+Typical faults: stale RF with healthy Thread suggests serial wiring/baud/controller response; acknowledgement mismatch with confirmed readback suggests firmware response variation; supported_modes_mask=0 suggests an absent pump. Writes to absent/unready pumps or stale state are rejected. Temperature becomes null over Matter on a failed poll; boolean controls keep last confirmed state because OnOff is not nullable.
+
+A separate Wi-Fi recovery mode or independent remote log collector is deferred. This avoids radio coexistence and provisioning complexity in the first migration, but means you cannot remotely diagnose a completely detached device through this HTTP channel.
