@@ -30,7 +30,7 @@ Check that menuconfig has Thread enabled, Wi-Fi station disabled, and target ESP
 
 The partition table targets 4 MB flash and reserves two OTA slots. Build failure for image size is a real gate; do not disable checks. OTA Requestor support is enabled, but an OTA provider, release signing and remote rollback workflow are not supplied by this milestone.
 
-Commission with your Matter controller over BLE onto its Thread network. Development SDK defaults use test attestation/commissioning credentials; obtain the onboarding QR/manual code using the SDK commissioning output or factory provisioning tools. Initial setup can use USB; no serial connection is required for subsequent state inspection. For unique production onboarding data, use Espressif's factory provisioning tooling. Do not expose test credentials outside a trusted development environment.
+Follow the [Matter commissioning guide](COMMISSIONING.md) to join a Thread network using the development pairing code. No local SDK or serial monitor is required for pairing. The guide also covers Home Assistant, diagnostics and pairing recovery.
 
 Find the device's routable IPv6 address in the border router/Thread integration. Open `http://[DEVICE_IPV6]:8080/`. Some routers/controllers only expose link-local or mesh-local addresses; a routable OMR address and host IPv6 route are needed. See DIAGNOSTICS.md.
 
