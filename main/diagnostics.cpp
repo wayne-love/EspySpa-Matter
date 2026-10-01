@@ -7,25 +7,12 @@
 #include "openthread/thread.h"
 #include "openthread/ip6.h"
 #include "cJSON.h"
-#include "sdkconfig.h"
-#include <cstring>
 namespace {
 const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>EspySpa diagnostics</title>
 <style>body{font:16px system-ui;max-width:1000px;margin:2rem auto;padding:0 1rem;background:#101c26;color:#e6f1f5}input,button{font:inherit;padding:.6rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2b38;padding:1rem}label{display:block;margin:1rem 0}</style>
 <h1>EspySpa diagnostics</h1><p>Read-only interface. State is reported by the spa controller. Requests are confirmed by readback.</p>
-<label>Diagnostic token <input id="token" type="password" autocomplete="off"></label><button id="connect">Connect</button><p id="status">Disconnected</p><button id="download">Download snapshot</button><pre id="data"></pre>
-<script>let timer,latest;const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/api/diagnostics',{headers:{Authorization:'Bearer '+el('token').value},cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);latest=await r.json();el('data').textContent=JSON.stringify(latest,null,2);el('status').textContent=latest.fresh?'Live spa state':'STALE / unavailable — see errors';}catch(e){el('status').textContent='Connection failed: '+e.message;}}el('connect').onclick=()=>{clearInterval(timer);refresh();timer=setInterval(refresh,5000);};el('download').onclick=()=>{if(!latest)return;const a=document.createElement('a');const u=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}));a.href=u;a.download='spa-diagnostics.json';a.click();URL.revokeObjectURL(u);};</script></html>)HTML";
-bool authenticated(httpd_req_t *req) {
-    const char *token = CONFIG_SPA_DIAGNOSTIC_TOKEN;
-    if (strlen(token) < 24 || strlen(token) > 128) return false;
-    char header[160];
-    if (httpd_req_get_hdr_value_str(req, "Authorization", header, sizeof(header)) != ESP_OK) return false;
-    std::string expected = std::string("Bearer ") + token;
-    if (strlen(header) != expected.size()) return false;
-    unsigned difference = 0;
-    for (size_t i = 0; i < expected.size(); ++i) difference |= static_cast<unsigned char>(header[i] ^ expected[i]);
-    return difference == 0;
-}
+<p id="status">Connecting…</p><button id="download">Download snapshot</button><pre id="data"></pre>
+<script>let timer,latest;const el=id=>document.getElementById(id);async function refresh(){try{const r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);latest=await r.json();el('data').textContent=JSON.stringify(latest,null,2);el('status').textContent=latest.fresh?'Live spa state':'STALE / unavailable — see errors';}catch(e){el('status').textContent='Connection failed: '+e.message;}}refresh();timer=setInterval(refresh,5000);el('download').onclick=()=>{if(!latest)return;const a=document.createElement('a');const u=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}));a.href=u;a.download='spa-diagnostics.json';a.click();URL.revokeObjectURL(u);};</script></html>)HTML";
 esp_err_t dashboard(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'");
@@ -33,7 +20,6 @@ esp_err_t dashboard(httpd_req_t *req) {
     return httpd_resp_send(req, page, HTTPD_RESP_USE_STRLEN);
 }
 esp_err_t diagnostic(httpd_req_t *req) {
-    if (!authenticated(req)) return httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, "Diagnostic token required (at least 24 characters)");
     auto s = snapshot(); const auto now = now_ms();
     cJSON *root = cJSON_CreateObject(); if (!root) return ESP_ERR_NO_MEM;
     cJSON_AddStringToObject(root, "firmware", esp_app_get_description()->version);

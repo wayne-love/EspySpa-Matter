@@ -7,7 +7,4 @@ menu "EspySpa hardware and diagnostics"
         int "UART1 RX GPIO (through the existing spa level converter)"
         range 0 30
         default 5
-    config SPA_DIAGNOSTIC_TOKEN
-        string "Read-only diagnostics token (24..128 characters; blank disables API)"
-        default ""
 endmenu

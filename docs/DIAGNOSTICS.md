@@ -4,9 +4,9 @@ Normal diagnostics use HTTP over IPv6 on **Thread**, port **8080**. Wi-Fi is dis
 
 1. Discover the routable device address from the border router or Matter/Thread integration.
 2. Browse to `http://[IPv6-address]:8080/`.
-3. Enter your diagnostic token and select Connect. The page refreshes every five seconds and supports downloading the current JSON snapshot.
+3. The read-only page connects automatically and refreshes every five seconds. Use Download snapshot to save its current JSON.
 
-The token stays in the page's memory/input; it is not saved in browser storage or included in downloaded JSON. No remote write, reboot, arbitrary UART command, commissioning credential or Thread dataset is exposed. HTTP does **not** provide TLS: the token and diagnostic data are visible to parties with access to routed traffic. Use a trusted LAN/VPN; do not forward port 8080 to the Internet. The SPA API is disabled with an empty/short token. The static page itself is public but contains no live state.
+The dashboard and `/api/diagnostics` are always available without authentication while the device is reachable over Thread. This assumes the trusted network specified for this project. No token, login, or API enable setting is required. No remote write, reboot, arbitrary UART command, commissioning credential or Thread dataset is exposed.
 
 The snapshot includes:
 

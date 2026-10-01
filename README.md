@@ -30,6 +30,6 @@ Initial flashing uses USB. Normal control and diagnosis use Thread. You need an 
 tests/run.sh
 ```
 
-Requires g++ with C++17. Includes address/undefined-behaviour sanitizers. Firmware compilation runs separately in GitHub Actions. CI artifacts have the diagnostics API disabled until you build with your private token.
+Requires g++ with C++17. Includes address/undefined-behaviour sanitizers. Firmware compilation runs separately in GitHub Actions. Diagnostics are always enabled without authentication on the trusted network. Open `http://[DEVICE_IPV6]:8080/`; the page connects and refreshes automatically.
 
 Protocol offsets and sample fixture derive from ESPySpa commit `ca206919b4df5886a09e8c91fe82d01df1f5488a`; its MIT notice is retained in [docs/UPSTREAM-LICENSE](docs/UPSTREAM-LICENSE).
