@@ -3,15 +3,40 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check whitespace
+        run: git diff-tree --check HEAD
+      - name: Check workflow syntax and shell expressions
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7 -color
+      - name: Test packaging guard failures
+        run: python3 -m unittest discover -s tests -p '*_test.py' -v
   protocol:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
     steps:
       - uses: actions/checkout@v4
       - run: tests/run.sh
+        env:
+          CXX: ${{ matrix.compiler }}
   firmware:
+    needs: [quality, protocol]
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     container: espressif/esp-matter:release-v1.4.2
     steps:
@@ -30,21 +55,14 @@ jobs:
           source "$ESP_MATTER_PATH/export.sh"
           idf.py set-target esp32c6
           idf.py build
-      - name: Verify complete flashing package
-        shell: bash
-        run: |
-          python3 - <<'PYVERIFY'
-          import json
-          from pathlib import Path
-          root = Path("build")
-          metadata = json.loads((root / "flasher_args.json").read_text())
-          files = set(metadata["flash_files"].values())
-          files.add("ota_data_initial.bin")
-          for filename in sorted(files):
-              if not (root / filename).is_file():
-                  raise SystemExit("Missing flashing image: " + filename)
-          print("All flashing images present, including OTA initialization data.")
-          PYVERIFY
+      - name: Check generated configuration, images and OTA space
+        run: python3 scripts/check_build.py
+      - name: Upload quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: espyspa-matter-quality-esp32c6
+          path: build/quality-report.json
+          if-no-files-found: error
       - name: Upload flashing images
         uses: actions/upload-artifact@v4
         with:
@@ -62,3 +80,15 @@ jobs:
           name: espyspa-matter-debug-esp32c6
           path: build/espyspa_matter.elf
           if-no-files-found: error
+  quality-gate:
+    if: ${{ always() }}
+    needs: [quality, protocol, firmware]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all checks to pass
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          PROTOCOL: ${{ needs.protocol.result }}
+          FIRMWARE: ${{ needs.firmware.result }}
+        run: test "$QUALITY" = success && test "$PROTOCOL" = success && test "$FIRMWARE" = success

@@ -111,6 +111,10 @@ void matter_start() {
     endpoint::aggregator::config_t ac;
     auto aggregator = endpoint::aggregator::create(node, &ac, ENDPOINT_FLAG_NONE, nullptr);
     configASSERT(aggregator);
+    // Fail visibly during startup if an incremental change renumbers paired controls.
+    const uint16_t control_ids[] = {thermostat_id, light_id, pump_ids[0], pump_ids[1], pump_ids[2], pump_ids[3], pump_ids[4], blower_id};
+    for (unsigned i = 0; i < 8; ++i) configASSERT(control_ids[i] == i + 1);
+    configASSERT(endpoint::get_id(aggregator) == 9);
     for (uint16_t id : {thermostat_id, light_id, pump_ids[0], pump_ids[1], pump_ids[2], pump_ids[3], pump_ids[4], blower_id})
         ESP_ERROR_CHECK(endpoint::set_parent_endpoint(endpoint::get(id), aggregator));
     esp_openthread_platform_config_t ot = {

@@ -25,6 +25,10 @@ See [build instructions](docs/BUILD.md), [Matter commissioning guide](docs/COMMI
 
 Initial flashing uses USB. Normal control and diagnosis use Thread. You need an ESP32-C6 with at least 4 MB flash, an existing compatible SpaNET serial level converter, a Thread border router and a Matter controller. GPIO4 TX / GPIO5 RX are configurable examples; confirm pins for your board. Do not wire spa voltage/RS232 signals directly to ESP GPIO.
 
+## Quality gates
+
+See [QUALITY.md](docs/QUALITY.md) for CI gates, artifact verification, branch protection setup and hardware acceptance checks for incremental changes.
+
 ## Test
 
 ```sh
