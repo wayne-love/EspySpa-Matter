@@ -21,3 +21,10 @@ void matter_start();
 void matter_publish();
 void diagnostics_start();
 std::string matter_status();
+
+struct MatterIndicator { bool initialized, paired, window_open, pairing; uint32_t failed_at_ms; };
+struct SpaIndicator { bool fresh, seen; };
+MatterIndicator matter_indicator();
+SpaIndicator spa_indicator();
+void status_led_start();
+std::string status_led_json();

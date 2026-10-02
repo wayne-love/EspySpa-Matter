@@ -3,6 +3,7 @@
 #include <platform/ESP32/OpenthreadLauncher.h>
 #include <platform/CHIPDeviceLayer.h>
 #include <app/server/Server.h>
+#include <app/server/CommissioningWindowManager.h>
 #include <atomic>
 #include <cstring>
 using namespace esp_matter;
@@ -13,11 +14,29 @@ bool publishing = false; // Only accessed on the CHIP task.
 std::atomic<int> last_event{0};
 std::atomic<unsigned> fabrics{0};
 std::atomic<bool> publish_pending{false};
+std::atomic<bool> initialized{false}, window_open{false}, pairing_active{false};
+std::atomic<uint32_t> pairing_failed_at{0};
+void refresh_identity(intptr_t) {
+    auto &server = chip::Server::GetInstance();
+    fabrics = server.GetFabricTable().FabricCount();
+    window_open = server.GetCommissioningWindowManager().IsCommissioningWindowOpen();
+}
 void app_matter_event(const chip::DeviceLayer::ChipDeviceEvent *e, intptr_t) {
     last_event = e->Type;
-    chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
-        fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
-    }, 0);
+    using namespace chip::DeviceLayer;
+    switch (e->Type) {
+    case DeviceEventType::kCommissioningSessionStarted:
+        pairing_active = true; pairing_failed_at = 0; break;
+    case DeviceEventType::kCommissioningSessionStopped:
+    case DeviceEventType::kCommissioningWindowClosed:
+        pairing_active = false; break;
+    case DeviceEventType::kCommissioningComplete:
+        pairing_active = false; pairing_failed_at = 0; break;
+    case DeviceEventType::kFailSafeTimerExpired:
+        pairing_active = false; pairing_failed_at = static_cast<uint32_t>(now_ms()); break;
+    default: break;
+    }
+    chip::DeviceLayer::PlatformMgr().ScheduleWork(refresh_identity, 0);
 }
 esp_err_t identify(identification::callback_type_t, uint16_t, uint8_t, uint8_t, void *) { return ESP_OK; }
 esp_err_t changed(attribute::callback_type_t type, uint16_t ep, uint32_t cluster, uint32_t attr,
@@ -75,6 +94,9 @@ uint16_t create_switch(node_t *node, const char *name) {
     configASSERT(ep); name_spa_endpoint(ep, name); return endpoint::get_id(ep);
 }
 }
+MatterIndicator matter_indicator() {
+    return {initialized.load(), fabrics.load() != 0, window_open.load(), pairing_active.load(), pairing_failed_at.load()};
+}
 std::string matter_status() { return "\"fabric_count\":" + std::to_string(fabrics.load()) + ",\"last_matter_event\":" + std::to_string(last_event.load()); }
 void matter_publish() {
     if (publish_pending.exchange(true)) return;
@@ -124,7 +146,6 @@ void matter_start() {
     };
     set_openthread_platform_config(&ot);
     ESP_ERROR_CHECK(esp_matter::start(app_matter_event));
-    chip::DeviceLayer::PlatformMgr().ScheduleWork([](intptr_t) {
-        fabrics = chip::Server::GetInstance().GetFabricTable().FabricCount();
-    }, 0);
+    initialized = true;
+    chip::DeviceLayer::PlatformMgr().ScheduleWork(refresh_identity, 0);
 }

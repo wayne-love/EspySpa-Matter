@@ -10,6 +10,7 @@ The dashboard and `/api/diagnostics` are always available without authentication
 
 The snapshot includes:
 
+- Status LED mode, flash count, GPIO and driver error (0 means no reported driver error).
 - Firmware version, uptime, reset reason, free/minimum heap.
 - Validity/freshness and age of the last confirmed state; failed polling retains last known data but marks it stale.
 - Water temperature, setpoint, light/heating/sleep indicators, pump modes/capability masks/readiness and blower mode.

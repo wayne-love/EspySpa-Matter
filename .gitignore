@@ -7,3 +7,4 @@ dependencies.lock
 .host-tests
 
 __pycache__/
+.host-led-tests

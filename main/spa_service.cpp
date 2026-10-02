@@ -79,6 +79,12 @@ void worker(void *) {
 }
 }
 uint64_t now_ms() { return esp_timer_get_time() / 1000; }
+SpaIndicator spa_indicator() {
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    SpaIndicator result{current.valid && now_ms() - current.last_valid_ms <= 15000, current.last_valid_ms != 0};
+    xSemaphoreGive(mutex);
+    return result;
+}
 Snapshot snapshot() {
     xSemaphoreTake(mutex, portMAX_DELAY); auto s = current; xSemaphoreGive(mutex);
     s.queued_commands = uxQueueMessagesWaiting(requests);

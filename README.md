@@ -23,7 +23,7 @@ Matter writes mean **accepted into a bounded queue**, not confirmed by the spa. 
 
 See [build instructions](docs/BUILD.md), [Matter commissioning guide](docs/COMMISSIONING.md), [remote diagnostics](docs/DIAGNOSTICS.md), and [migration/acceptance plan](docs/MIGRATION.md).
 
-Initial flashing uses USB. Normal control and diagnosis use Thread. You need an ESP32-C6 with at least 4 MB flash, an existing compatible SpaNET serial level converter, a Thread border router and a Matter controller. GPIO4 TX / GPIO5 RX are configurable examples; confirm pins for your board. Do not wire spa voltage/RS232 signals directly to ESP GPIO.
+Initial flashing uses USB. Normal control and diagnosis use Thread. You need an ESP32-C6 with at least 4 MB flash, an existing compatible SpaNET serial level converter, a Thread border router and a Matter controller. The supplied board uses GPIO20 TX / GPIO19 RX for spa UART and GPIO10 for its WS2812 status LED. These pins remain configurable. See the [status LED guide](docs/STATUS_LED.md). Do not wire spa voltage/RS232 signals directly to ESP GPIO.
 
 ## Quality gates
 
