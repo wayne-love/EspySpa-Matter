@@ -44,6 +44,12 @@ Ensure the phone has the intended [Thread network credentials](https://www.home-
 
 In the Companion app, choose **Settings → Devices & services → Devices → Add device → Add Matter device**, then add a new device and scan or enter the code. Commissioning uses the phone's Bluetooth. Keep Home Assistant, the phone and border router on a network that allows IPv6 and local discovery; guest-network isolation can block setup.
 
+## Accessory name
+
+The firmware supplies **eSpa** as its Matter product name, default node label and advertised commissioning name. Bluetooth discovery uses the eSpa prefix (the SDK may append the discriminator). An iPhone setup screen can still show a generic **Matter Accessory** label before it reads the device identity; its display behaviour needs validation on the target iOS version. Name the accessory **eSpa** when prompted if necessary.
+
+An existing Home accessory can retain the name saved by its controller after a firmware update. Rename it in Home rather than erasing the device just to change the display name.
+
 ## Controls after pairing
 
 | Endpoint | Control |

@@ -4,6 +4,7 @@
 #include <platform/CHIPDeviceLayer.h>
 #include <app/server/Server.h>
 #include <atomic>
+#include <cstring>
 using namespace esp_matter;
 using namespace chip::app::Clusters;
 namespace {
@@ -69,7 +70,9 @@ void matter_publish() {
     if (err != CHIP_NO_ERROR) publish_pending = false;
 }
 void matter_start() {
-    node::config_t cfg; auto node = node::create(&cfg, changed, identify); configASSERT(node);
+    node::config_t cfg;
+    std::strcpy(cfg.root_node.basic_information.node_label, "eSpa");
+    auto node = node::create(&cfg, changed, identify); configASSERT(node);
     endpoint::thermostat::config_t tc;
     tc.thermostat.local_temperature = nullptr;
     tc.thermostat.control_sequence_of_operation = 2; // Heating only
