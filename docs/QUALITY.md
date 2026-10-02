@@ -1,12 +1,17 @@
 # Quality checks for incremental changes
 
-GitHub Actions runs on every push, pull request and manual workflow run. No local ESP SDK is required. The **quality-gate** job succeeds only when all required jobs succeed; a failed, cancelled or skipped dependency fails that gate. Older runs on the same branch are cancelled when a new commit arrives.
+GitHub Actions runs on pull requests, pushes to **main**, and manual workflow runs. Feature-branch pushes run automatically once a PR is open, through the PR event; before that, use **Run workflow** to build a branch on demand. This avoids duplicate push/PR builds. No local ESP SDK is required. Older runs for the same PR or branch are cancelled when a new commit arrives.
+
+The **quality-gate** requires successful change classification, quality checks and both host compiler jobs. Code, configuration, workflow, test and unknown file changes also require a successful firmware build and package validation. A PR containing only `README.md`, `LICENSE`, `LICENSE.md`, or Markdown/PNG/JPEG files under `docs/` deliberately skips firmware. The gate accepts this explicit documentation-only skip, but rejects failures, cancellations, missing classification and unexpected skips. Classification compares the whole checked-out PR merge result with its base SHA, including deleted paths and both sides of renames. Pushes to main and manual runs always build firmware.
+
+Firmware compilation uses a persistent **ccache**, bounded to 500 MB per saved cache. The key includes the SDK baseline, target, relevant configuration and workflow, with a new cache entry for each built commit. Only compiler results are cached: build directories and flashing artifacts are regenerated and validated. Cache misses still perform a complete build; hits reduce repeated compilation but do not remove container startup, SDK setup or linking. Statistics in the build log show the actual hit rate. PR cache access follows GitHub's branch scope; a successful main build seeds a cache that subsequent PRs can restore.
 
 ## Automated checks
 
 | Gate | What it catches | Limits |
 |---|---|---|
 | Quality | Whitespace errors, actionlint workflow/shell validation, ten packaging-validator tests | Does not simulate hardware |
+| CI policy | Conservative documentation classification and rejection of failed/cancelled/unexpectedly skipped dependencies | Workflow execution and cache effectiveness are checked on GitHub |
 | Protocol (g++ and clang++) | Compiler warnings as errors, AddressSanitizer and UndefinedBehaviorSanitizer, recorded SV3 fixture, malformed input, all five pump registers × 32 capability masks × two readiness states | Fixture is evidence for one controller snapshot |
 | Parser stress | Every fixture truncation plus 3,000 reproducible byte mutations; failed parsing must preserve all previous state | Bounded regression stress, not exhaustive fuzzing |
 | Firmware | Actual pinned ESP-Matter/ESP-IDF compilation for ESP32-C6 | Compilation does not establish controller interoperability |
@@ -14,7 +19,7 @@ GitHub Actions runs on every push, pull request and manual workflow run. No loca
 | OTA headroom | At least 64 KiB free in each OTA application slot | An explicit growth reserve, not a guarantee for future features |
 | Startup guard | Control endpoint IDs 1–8 and aggregator 9 remain stable | Runs on the ESP at startup, not in host CI |
 
-Artifacts are uploaded only after the host checks and firmware/package checks pass. A separate **espyspa-matter-quality-esp32c6** artifact contains commit SHA, image SHA-256 hashes, image sizes/offsets, checked configuration and remaining OTA space. Keep it with the flashing images and matching debug ELF. These hashes identify an artifact; they are not firmware signing.
+Documentation-only PR runs produce no firmware artifacts. Artifacts are uploaded only after the host checks and firmware/package checks pass. A separate **espyspa-matter-quality-esp32c6** artifact contains commit SHA, image SHA-256 hashes, image sizes/offsets, checked configuration and remaining OTA space. Keep it with the flashing images and matching debug ELF. These hashes identify an artifact; they are not firmware signing.
 
 ## Protect main
 
@@ -24,7 +29,7 @@ The workflow alone does not prevent a failing commit from being pushed to main. 
 2. Disallow bypassing the rule and force pushes.
 3. For a review-based workflow, require pull requests and a reviewer before merge.
 
-Wait for the check to run once so GitHub can offer it as a required status check. Repository administration is not available through the connector used for this change; branch protection has not been enabled by this commit. No pull request is created or merged on your behalf.
+Wait for the check to run once so GitHub can offer it as a required status check. Repository administration is not available through the connector used for this change; branch protection has not been enabled by this commit. Pull requests are opened when requested; merging remains a user action.
 
 See [GitHub protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches).
 
