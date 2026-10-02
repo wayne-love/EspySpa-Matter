@@ -1,6 +1,6 @@
 # Build and commission
 
-For a remote build, select **Validate ESP32-C6 migration → Run workflow** in GitHub Actions and download **espyspa-matter-development-esp32c6** from the completed run. Diagnostics are enabled in these images without any authentication. The SDK installation below is optional.
+For a remote build, select **Validate ESP32-C6 migration → Run workflow** in GitHub Actions and download **espyspa-matter-development-esp32c6** from the completed run. Diagnostics are enabled in these images without any authentication. The SDK installation below is optional. Automatic builds run for pull requests and pushes to main; feature branches without a PR can be built manually. Documentation-only PRs keep the fast checks but produce no firmware package. Manual runs always build firmware. Compiler caching speeds up repeat builds after a cache has been populated; see [quality checks](QUALITY.md).
 
 SDK baseline: ESP-IDF **v5.4.1**, ESP-Matter `release/v1.4.2` commit **4cedd4ad40821933d6cc237e80ab6604f2953fb0**. Follow the official [ESP-Matter setup](https://docs.espressif.com/projects/esp-matter/en/release-v1.4.2/esp32c6/developing.html) to install IDF and Matter prerequisites and connectedhomeip submodules. Do not substitute Arduino board packages.
 

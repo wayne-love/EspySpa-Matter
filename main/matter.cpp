@@ -15,7 +15,7 @@ std::atomic<int> last_event{0};
 std::atomic<unsigned> fabrics{0};
 std::atomic<bool> publish_pending{false};
 std::atomic<bool> initialized{false}, window_open{false}, pairing_active{false};
-std::atomic<uint32_t> pairing_failed_at{0};
+std::atomic<uint64_t> pairing_failed_at{0};
 void refresh_identity(intptr_t) {
     auto &server = chip::Server::GetInstance();
     fabrics = server.GetFabricTable().FabricCount();
@@ -33,7 +33,7 @@ void app_matter_event(const chip::DeviceLayer::ChipDeviceEvent *e, intptr_t) {
     case DeviceEventType::kCommissioningComplete:
         pairing_active = false; pairing_failed_at = 0; break;
     case DeviceEventType::kFailSafeTimerExpired:
-        pairing_active = false; pairing_failed_at = static_cast<uint32_t>(now_ms()); break;
+        pairing_active = false; pairing_failed_at = now_ms(); break;
     default: break;
     }
     chip::DeviceLayer::PlatformMgr().ScheduleWork(refresh_identity, 0);
@@ -47,7 +47,6 @@ esp_err_t changed(attribute::callback_type_t type, uint16_t ep, uint32_t cluster
             if (v->val.i16 % 20) return ESP_ERR_INVALID_ARG;
             return submit({spa::Control::Setpoint, v->val.i16 / 10});
         }
-        // No verified SpaNET command for global heater off: don't claim support.
         if (attr == Thermostat::Attributes::SystemMode::Id && v->val.u8 != 4) return ESP_ERR_NOT_SUPPORTED;
     }
     if (cluster == OnOff::Id && attr == OnOff::Attributes::OnOff::Id) {
@@ -79,12 +78,11 @@ void publish(intptr_t) {
     publishing = false;
 }
 void name_spa_endpoint(endpoint_t *ep, const char *name) {
-    // Each UART-backed control is a named bridged function of the spa.
     endpoint::bridged_node::config_t cfg;
     cfg.bridged_device_basic_information.reachable = false;
     ESP_ERROR_CHECK(endpoint::bridged_node::add(ep, &cfg));
     auto cl = cluster::get(ep, BridgedDeviceBasicInformation::Id);
-    auto label = const_cast<char *>(name); // SDK copies the string into attribute storage.
+    auto label = const_cast<char *>(name);
     configASSERT(cluster::bridged_device_basic_information::attribute::create_node_label(cl, label, std::strlen(name)));
     configASSERT(cluster::bridged_device_basic_information::attribute::create_product_name(cl, label, std::strlen(name)));
 }
@@ -109,8 +107,8 @@ void matter_start() {
     auto node = node::create(&cfg, changed, identify); configASSERT(node);
     endpoint::thermostat::config_t tc;
     tc.thermostat.local_temperature = nullptr;
-    tc.thermostat.control_sequence_of_operation = 2; // Heating only
-    tc.thermostat.system_mode = 4; // Heat
+    tc.thermostat.control_sequence_of_operation = 2;
+    tc.thermostat.system_mode = 4;
     tc.thermostat.features.heating.occupied_heating_setpoint = 3800;
     tc.thermostat.feature_flags = cluster::thermostat::feature::heating::get_id();
     auto ep = endpoint::thermostat::create(node, &tc, ENDPOINT_FLAG_BRIDGE, nullptr); configASSERT(ep);
@@ -129,11 +127,9 @@ void matter_start() {
     const char *pump_names[] = {"eSpa Pump 1", "eSpa Pump 2", "eSpa Pump 3", "eSpa Pump 4", "eSpa Pump 5"};
     for (int p = 0; p < 5; ++p) pump_ids[p] = create_switch(node, pump_names[p]);
     blower_id = create_switch(node, "eSpa Blower");
-    // Append the aggregator so established control endpoint IDs 1-8 stay stable.
     endpoint::aggregator::config_t ac;
     auto aggregator = endpoint::aggregator::create(node, &ac, ENDPOINT_FLAG_NONE, nullptr);
     configASSERT(aggregator);
-    // Fail visibly during startup if an incremental change renumbers paired controls.
     const uint16_t control_ids[] = {thermostat_id, light_id, pump_ids[0], pump_ids[1], pump_ids[2], pump_ids[3], pump_ids[4], blower_id};
     for (unsigned i = 0; i < 8; ++i) configASSERT(control_ids[i] == i + 1);
     configASSERT(endpoint::get_id(aggregator) == 9);

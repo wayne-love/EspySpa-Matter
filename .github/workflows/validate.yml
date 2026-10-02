@@ -1,6 +1,7 @@
 name: Validate ESP32-C6 migration
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 concurrency:
@@ -9,6 +10,26 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      firmware: ${{ steps.classify.outputs.firmware }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Classify changed files
+        id: classify
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            python3 scripts/ci_policy.py --base "$BASE_SHA" --head HEAD >> "$GITHUB_OUTPUT"
+          else
+            echo 'firmware=true' >> "$GITHUB_OUTPUT"
+          fi
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -35,12 +56,25 @@ jobs:
         env:
           CXX: ${{ matrix.compiler }}
   firmware:
-    needs: [quality, protocol]
+    needs: [changes, quality, protocol]
+    if: ${{ needs.changes.outputs.firmware == 'true' }}
     timeout-minutes: 30
     runs-on: ubuntu-latest
     container: espressif/esp-matter:release-v1.4.2
+    env:
+      IDF_CCACHE_ENABLE: '1'
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_MAXSIZE: 500M
     steps:
       - uses: actions/checkout@v4
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-v1-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h', 'partitions.csv', '.github/workflows/validate.yml') }}-${{ github.sha }}
+          restore-keys: |
+            ccache-v1-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h', 'partitions.csv', '.github/workflows/validate.yml') }}-
       - name: Build Matter over Thread firmware
         shell: bash
         run: |
@@ -53,8 +87,10 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           source "$IDF_PATH/export.sh"
           source "$ESP_MATTER_PATH/export.sh"
+          ccache --zero-stats
           idf.py set-target esp32c6
           idf.py build
+          ccache --show-stats
       - name: Check generated configuration, images and OTA space
         run: python3 scripts/check_build.py
       - name: Upload quality report
@@ -82,13 +118,16 @@ jobs:
           if-no-files-found: error
   quality-gate:
     if: ${{ always() }}
-    needs: [quality, protocol, firmware]
+    needs: [changes, quality, protocol, firmware]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@v4
       - name: Require all checks to pass
         env:
           QUALITY: ${{ needs.quality.result }}
           PROTOCOL: ${{ needs.protocol.result }}
           FIRMWARE: ${{ needs.firmware.result }}
-        run: test "$QUALITY" = success && test "$PROTOCOL" = success && test "$FIRMWARE" = success
+          CHANGES: ${{ needs.changes.result }}
+          FIRMWARE_REQUIRED: ${{ needs.changes.outputs.firmware }}
+        run: python3 scripts/ci_policy.py --gate
