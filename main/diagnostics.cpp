@@ -52,6 +52,8 @@ esp_err_t diagnostic(httpd_req_t *req) {
     cJSON_AddNumberToObject(counters, "polls_failed", s.polls_failed);
     cJSON_AddNumberToObject(counters, "commands_confirmed", s.commands_ok);
     cJSON_AddNumberToObject(counters, "commands_failed", s.commands_failed);
+    auto led = cJSON_Parse(status_led_json().c_str());
+    if (led) cJSON_AddItemToObject(root, "status_led", led);
     auto matter = cJSON_Parse(("{" + matter_status() + "}").c_str());
     if (matter) cJSON_AddItemToObject(root, "matter", matter);
     auto thread = cJSON_AddObjectToObject(root, "thread");

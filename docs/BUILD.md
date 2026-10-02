@@ -24,7 +24,7 @@ idf.py build
 idf.py -p /dev/ttyACM0 flash
 ```
 
-In **EspySpa hardware and diagnostics**, configure the UART pins. Diagnostics are always enabled without authentication on the trusted network; no token or secret configuration is required.
+In **EspySpa hardware and diagnostics**, configure the UART pins (TX20 / RX19 by default) and WS2812 LED pin (GPIO10) and brightness. Diagnostics are always enabled without authentication on the trusted network; no token or secret configuration is required.
 
 Check that menuconfig has Thread enabled, Wi-Fi station disabled, and target ESP32-C6. The device is always awake (mains powered). Keep the existing 38400 8N1 level-converted serial connection. ESP32-C6 uses UART1, not the UART2 of older ESP32 builds. Validate voltage levels, power supply and pin assignments before connecting the spa.
 

@@ -2,9 +2,17 @@ menu "EspySpa hardware and diagnostics"
     config SPA_TX_GPIO
         int "UART1 TX GPIO (through the existing spa level converter)"
         range 0 30
-        default 4
+        default 20
     config SPA_RX_GPIO
         int "UART1 RX GPIO (through the existing spa level converter)"
         range 0 30
-        default 5
+        default 19
+    config SPA_LED_GPIO
+        int "WS2812 status LED GPIO"
+        range 0 30
+        default 10
+    config SPA_LED_BRIGHTNESS
+        int "Status LED brightness (per colour channel)"
+        range 1 255
+        default 16
 endmenu

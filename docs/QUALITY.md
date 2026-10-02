@@ -13,6 +13,7 @@ Firmware compilation uses a persistent **ccache**, bounded to 500 MB per saved c
 | Quality | Whitespace errors, actionlint workflow/shell validation, ten packaging-validator tests | Does not simulate hardware |
 | CI policy | Conservative documentation classification and rejection of failed/cancelled/unexpectedly skipped dependencies | Workflow execution and cache effectiveness are checked on GitHub |
 | Protocol (g++ and clang++) | Compiler warnings as errors, AddressSanitizer and UndefinedBehaviorSanitizer, recorded SV3 fixture, malformed input, all five pump registers × 32 capability masks × two readiness states | Fixture is evidence for one controller snapshot |
+| LED policy | Commissioning states, Thread/spa loss and recovery, pulse boundaries and dark gaps under both compiler/sanitizer jobs | Does not verify LED wiring or colour order |
 | Parser stress | Every fixture truncation plus 3,000 reproducible byte mutations; failed parsing must preserve all previous state | Bounded regression stress, not exhaustive fuzzing |
 | Firmware | Actual pinned ESP-Matter/ESP-IDF compilation for ESP32-C6 | Compilation does not establish controller interoperability |
 | Build package | Generated target/Thread/Wi-Fi/USB console/project config, required images and metadata, nonempty files, safe paths, no flash-image overlap, application offset and fit in both OTA slots | Uses this repository's partition layout |
