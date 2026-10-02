@@ -25,6 +25,10 @@ See [build instructions](docs/BUILD.md), [Matter commissioning guide](docs/COMMI
 
 Initial flashing uses USB. Normal control and diagnosis use Thread. You need an ESP32-C6 with at least 4 MB flash, an existing compatible SpaNET serial level converter, a Thread border router and a Matter controller. The supplied board uses GPIO20 TX / GPIO19 RX for spa UART and GPIO10 for its WS2812 status LED. These pins remain configurable. See the [status LED guide](docs/STATUS_LED.md). Do not wire spa voltage/RS232 signals directly to ESP GPIO.
 
+## Factory reset
+
+Press and release **BOOT (GPIO9) five times within five seconds** while the firmware is running. Purple flashes confirm the request; keep BOOT released. Pairings and Thread credentials are cleared and the connector restarts ready to pair. Firmware and spa controller settings are retained. See [reset details](docs/STATUS_LED.md#factory-reset).
+
 ## Quality gates
 
 See [QUALITY.md](docs/QUALITY.md) for CI gates, artifact verification, branch protection setup and hardware acceptance checks for incremental changes.

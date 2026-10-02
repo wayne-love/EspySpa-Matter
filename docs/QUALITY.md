@@ -8,6 +8,7 @@ GitHub Actions runs on every push, pull request and manual workflow run. No loca
 |---|---|---|
 | Quality | Whitespace errors, actionlint workflow/shell validation, ten packaging-validator tests | Does not simulate hardware |
 | Protocol (g++ and clang++) | Compiler warnings as errors, AddressSanitizer and UndefinedBehaviorSanitizer, recorded SV3 fixture, malformed input, all five pump registers × 32 capability masks × two readiness states | Fixture is evidence for one controller snapshot |
+| Factory reset gesture | Debounce, startup-held button, release requirement, exact five-second boundary, timeout and one-shot trigger | GPIO and SDK erase/reboot require hardware acceptance |
 | LED policy | Commissioning states, Thread/spa loss and recovery, pulse boundaries and dark gaps under both compiler/sanitizer jobs | Does not verify LED wiring or colour order |
 | Parser stress | Every fixture truncation plus 3,000 reproducible byte mutations; failed parsing must preserve all previous state | Bounded regression stress, not exhaustive fuzzing |
 | Firmware | Actual pinned ESP-Matter/ESP-IDF compilation for ESP32-C6 | Compilation does not establish controller interoperability |

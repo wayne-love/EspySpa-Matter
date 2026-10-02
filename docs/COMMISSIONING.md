@@ -81,7 +81,7 @@ Check Thread role (2 child, 3 router or 4 leader), Matter fabric count, and spa 
 | Matter works but web page does not | Use a routable OMR address, IPv6 connectivity and TCP port 8080. A link-local `fe80::` address is not a substitute for routed access. |
 | Controls fail or temperature unavailable | Check diagnostic freshness, polling errors, UART pins/levels and installed pump capabilities. |
 
-Normal firmware updates preserve pairing when NVS is retained. There is currently no network factory-reset API or implemented BOOT-button factory reset. If the old controller/network is unavailable, recovery requires USB tooling: deliberately erasing NVS or the full flash removes Matter fabrics and Thread credentials. A full erase also requires flashing the complete image package again. This is destructive recovery, not a routine update step.
+Normal firmware updates preserve pairing when NVS is retained. For an aborted pairing, unavailable old controller or lost Thread network, press and release **BOOT (GPIO9) five times within five seconds**, while firmware is running. After purple confirmation, keep BOOT released: the connector clears its Matter/Thread configuration and reboots ready for a new pairing. Firmware is retained. See [STATUS_LED.md](STATUS_LED.md#factory-reset) for timing and recovery details. There is no network factory-reset API. This deliberately removes every saved pairing; do not use it for a normal firmware update.
 
 ### Native USB startup logs
 

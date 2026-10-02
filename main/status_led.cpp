@@ -14,6 +14,7 @@ const char *TAG = "status_led";
 led_strip_handle_t strip;
 std::atomic<indicator::Mode> mode{indicator::Mode::Starting};
 std::atomic<int> driver_error{ESP_OK};
+std::atomic<bool> reset_pending{false};
 static_assert(CONFIG_SPA_TX_GPIO != CONFIG_SPA_RX_GPIO, "Spa TX and RX must differ");
 static_assert(CONFIG_SPA_LED_GPIO != CONFIG_SPA_TX_GPIO && CONFIG_SPA_LED_GPIO != CONFIG_SPA_RX_GPIO,
               "Status LED must not share a spa UART pin");
@@ -39,7 +40,7 @@ void worker(void *) {
                 m.failed_at_ms != 0 && static_cast<uint32_t>(now) - m.failed_at_ms < 10000,
                 attached, thread_seen, spa.fresh, spa.seen});
         }
-        auto current = mode.load();
+        auto current = reset_pending.load() ? indicator::Mode::FactoryReset : mode.load();
         const bool changed = current != previous;
         if (changed) {
             changed_at = now;
@@ -59,8 +60,9 @@ void worker(void *) {
     }
 }
 }
+void status_led_reset_pending(bool pending) { reset_pending = pending; }
 std::string status_led_json() {
-    auto p = indicator::pattern(mode.load());
+    auto p = indicator::pattern(reset_pending.load() ? indicator::Mode::FactoryReset : mode.load());
     return "{\"gpio\":" + std::to_string(CONFIG_SPA_LED_GPIO) + ",\"status\":\"" + p.name +
         "\",\"flashes\":" + std::to_string(p.flashes) + ",\"driver_error\":" + std::to_string(driver_error.load()) + "}";
 }

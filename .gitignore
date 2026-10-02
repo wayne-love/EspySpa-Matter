@@ -8,3 +8,4 @@ dependencies.lock
 
 __pycache__/
 .host-led-tests
+.host-reset-tests
