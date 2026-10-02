@@ -54,12 +54,13 @@ An existing Home accessory can retain the name saved by its controller after a f
 
 | Endpoint | Control |
 |---|---|
-| 1 | Water temperature and heating setpoint |
-| 2 | Light on/off |
-| 3–7 | Pump 1–5 mode switches |
-| 8 | Blower mode switch |
+| 1 | eSpa Temperature — water temperature and heating setpoint |
+| 2 | eSpa Light |
+| 3–7 | eSpa Pump 1 through eSpa Pump 5 |
+| 8 | eSpa Blower |
+| 9 | Matter aggregator for the named spa controls |
 
-Controller support determines how endpoints appear. Rename the switches and hide pumps absent from your spa. The thermostat supports Heat and setpoints from 5–41 °C in 0.2 °C steps; it does not implement global heating Off. Pump On selects the highest supported manual mode; Off selects mode 0. The spa retains its safety and filtration logic. See [README.md](../README.md) for command and readback behaviour.
+The UART-backed controls now carry Bridged Device Basic Information with individual NodeLabel and ProductName attributes, grouped under an aggregator. Controller support determines how endpoints appear; verify that Apple Home uses these defaults during a new addition. Previously saved names may require manual renaming. Rename the switches and hide pumps absent from your spa. The thermostat supports Heat and setpoints from 5–41 °C in 0.2 °C steps; it does not implement global heating Off. Pump On selects the highest supported manual mode; Off selects mode 0. The spa retains its safety and filtration logic. See [README.md](../README.md) for command and readback behaviour.
 
 ## Open diagnostics without a serial cable
 

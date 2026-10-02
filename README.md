@@ -11,8 +11,9 @@ Initial ESP32-C6 rewrite of [ESPySpa](https://github.com/wayne-love/ESPySpa): Sp
 | 2 | Light | On/off using fresh-state guarded W14 toggle |
 | 3–7 | Pump 1–5 switches | On chooses highest supported manual mode; off chooses mode 0 |
 | 8 | Blower switch | On selects Variable (S28:0); off S28:2 |
+| 9 | Matter aggregator | Groups the named UART-backed spa controls |
 
-Rename the switches in your Matter controller. All five pump endpoints are stable across boots, including uninstalled pumps: unsupported controls fail instead of sending commands. Pump capability/readiness comes from RG. These switches control pump modes, not electrical supply or physical running state; Auto (4) is reported as on. A subsequent on request selects manual operation. Off does not preserve/restore Auto.
+The firmware supplies eSpa Temperature, eSpa Light, eSpa Pump 1–5 and eSpa Blower as individual bridged control names. Controllers may retain previously assigned names. Rename the switches in your Matter controller if needed. All five pump endpoints are stable across boots, including uninstalled pumps: unsupported controls fail instead of sending commands. Pump capability/readiness comes from RG. These switches control pump modes, not electrical supply or physical running state; Auto (4) is reported as on. A subsequent on request selects manual operation. Off does not preserve/restore Auto.
 
 The thermostat stays in Heat mode: the original protocol does not establish a safe global heating-off command. Attempts to select Off/Cool/Auto are rejected. The spa retains its own heating, filtration, timers and safety interlocks. Some controllers may display modes or setpoints they cannot use; controller interoperability is part of hardware acceptance testing.
 
