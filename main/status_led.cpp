@@ -36,7 +36,7 @@ void worker(void *) {
             thread_seen = thread_seen || attached;
             auto spa = spa_indicator();
             mode = indicator::select({m.initialized, m.paired, m.window_open, m.pairing,
-                m.failed_at_ms != 0 && static_cast<uint32_t>(now) - m.failed_at_ms < 10000,
+                m.failed_at_ms != 0 && now - m.failed_at_ms < 10000,
                 attached, thread_seen, spa.fresh, spa.seen});
         }
         auto current = mode.load();
