@@ -72,7 +72,10 @@ void status_led_start() {
     rmt.clk_src = RMT_CLK_SRC_DEFAULT; rmt.resolution_hz = 10000000;
     auto err = led_strip_new_rmt_device(&cfg, &rmt, &strip);
     if (err == ESP_OK && xTaskCreate(worker, "status_led", 3072, nullptr, 2, nullptr) != pdPASS) err = ESP_ERR_NO_MEM;
-    driver_error = err;
+    // Do not overwrite a render error if the new worker already ran.
     // Indicator faults must not stop spa control or network diagnostics.
-    if (err != ESP_OK) ESP_LOGE(TAG, "LED initialization failed: %s", esp_err_to_name(err));
+    if (err != ESP_OK) {
+        driver_error = err;
+        ESP_LOGE(TAG, "LED initialization failed: %s", esp_err_to_name(err));
+    }
 }
