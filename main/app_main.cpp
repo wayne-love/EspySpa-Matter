@@ -17,15 +17,16 @@ extern "C" void app_main() {
 
     ESP_LOGI(TAG, "Starting Matter over Thread");
     matter_start();
+
+    // Arm OTA validation before exposing reset or management controls.
+    firmware_update_start();
     reset_button_start();
 
     ESP_LOGI(TAG, "Starting IPv6 diagnostics on port 8080");
     diagnostics_start();
+    ESP_LOGI(TAG, "Starting firmware management on port 8081");
+    firmware_web_start();
 
     spa_worker_start();
     ESP_LOGI(TAG, "Startup complete; spa worker running");
-
-    // A newly installed OTA image remains pending until the application has
-    // survived a short post-startup validation window.
-    firmware_update_start();
 }
