@@ -1,5 +1,5 @@
 #include "app.hpp"
-#include "reset_gesture.hpp"
+#include "reset_gesture.hpp"\n#include "alternate_boot_gesture.hpp"
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_matter.h"
