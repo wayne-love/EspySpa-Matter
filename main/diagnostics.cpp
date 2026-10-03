@@ -6,7 +6,7 @@
 #include "esp_openthread_lock.h"
 #include "openthread/thread.h"
 #include "openthread/ip6.h"
-#include "cJSON.h"
+#include "cJSON.h"\n#include <cstring>
 namespace {
 const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>EspySpa diagnostics</title>
 <style>
@@ -195,8 +195,10 @@ esp_err_t firmware_update(httpd_req_t *req) {
     }
     esp_err_t err = firmware_start_update();
     if (err != ESP_OK) {
-        httpd_resp_send_err(req, HTTPD_409_CONFLICT, esp_err_to_name(err));
-        return err;
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_sendstr(req, esp_err_to_name(err));
+        return ESP_FAIL;
     }
     httpd_resp_set_status(req, "202 Accepted");
     httpd_resp_set_type(req, "application/json");
@@ -210,8 +212,10 @@ esp_err_t firmware_alternate(httpd_req_t *req) {
     }
     esp_err_t err = firmware_reboot_alternate();
     if (err != ESP_OK) {
-        httpd_resp_send_err(req, HTTPD_409_CONFLICT, esp_err_to_name(err));
-        return err;
+        httpd_resp_set_status(req, "409 Conflict");
+        httpd_resp_set_type(req, "text/plain");
+        httpd_resp_sendstr(req, esp_err_to_name(err));
+        return ESP_FAIL;
     }
     httpd_resp_set_status(req, "202 Accepted");
     httpd_resp_set_type(req, "application/json");
