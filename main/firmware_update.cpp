@@ -326,8 +326,8 @@ void validation_task(void *) {
     esp_ota_img_states_t state;
     if (running && esp_ota_get_state_partition(running, &state) == ESP_OK &&
         state == ESP_OTA_IMG_PENDING_VERIFY) {
-        ESP_LOGW(TAG, "OTA image pending verification; validating for %u seconds",
-                 VALIDATION_DELAY_MS / 1000);
+        ESP_LOGW(TAG, "OTA image pending verification; validating for %lu seconds",
+                 static_cast<unsigned long>(VALIDATION_DELAY_MS / 1000));
         vTaskDelay(pdMS_TO_TICKS(VALIDATION_DELAY_MS));
 
         if (matter_indicator().initialized) {
@@ -441,21 +441,21 @@ std::string firmware_info_json() {
 
     const esp_app_desc_t *app = esp_app_get_description();
     std::string json = "{";
-    json += ""version":" + json_escape(app ? app->version : "unknown");
-    json += ","image_channel":" + json_escape(image_channel());
-    json += ","update_channel":" + json_escape(load_channel());
-    json += ","commit":" + json_escape(ESPYSPA_GIT_COMMIT);
-    json += ","partition":" + json_escape(running ? running->label : "unknown");
-    json += ","ota_state":" + std::to_string(static_cast<int>(state));
-    json += ","busy":" + std::string(busy ? "true" : "false");
-    json += ","update_state":" + json_escape(current_state);
-    json += ","update_error":" + json_escape(current_error);
-    json += ","update_target_version":" + json_escape(current_target);
+    json += "\"version\":" + json_escape(app ? app->version : "unknown");
+    json += ",\"image_channel\":" + json_escape(image_channel());
+    json += ",\"update_channel\":" + json_escape(load_channel());
+    json += ",\"commit\":" + json_escape(ESPYSPA_GIT_COMMIT);
+    json += ",\"partition\":" + json_escape(running ? running->label : "unknown");
+    json += ",\"ota_state\":" + std::to_string(static_cast<int>(state));
+    json += ",\"busy\":" + std::string(busy ? "true" : "false");
+    json += ",\"update_state\":" + json_escape(current_state);
+    json += ",\"update_error\":" + json_escape(current_error);
+    json += ",\"update_target_version\":" + json_escape(current_target);
     if (other_valid) {
-        json += ","alternate":{"partition":" + json_escape(other->label);
-        json += ","version":" + json_escape(other_desc.version) + "}";
+        json += ",\"alternate\":{\"partition\":" + json_escape(other->label);
+        json += ",\"version\":" + json_escape(other_desc.version) + "}";
     } else {
-        json += ","alternate":null";
+        json += ",\"alternate\":null";
     }
     json += "}";
     return json;
