@@ -126,11 +126,11 @@ jobs:
       - name: Check generated configuration, images and OTA space
         run: python3 scripts/check_build.py
 
-      - name: Build OTA manifest
+      - name: Package firmware and build OTA manifest
         shell: bash
         run: |
           set -euo pipefail
-          cp build/espyspa_matter.bin build/espyspa-matter.bin
+          python3 scripts/package_firmware.py --build build
           python3 scripts/make_manifest.py \
             --image build/espyspa-matter.bin \
             --version "$ESPYSPA_VERSION" \
@@ -150,7 +150,6 @@ jobs:
         with:
           name: espyspa-matter-development-esp32c6
           path: |
-            build/espyspa_matter.bin
             build/espyspa-matter.bin
             build/manifest.json
             build/bootloader/bootloader.bin
