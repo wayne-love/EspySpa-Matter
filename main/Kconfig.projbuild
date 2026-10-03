@@ -3,20 +3,32 @@ menu "EspySpa hardware and diagnostics"
         int "UART1 TX GPIO (through the existing spa level converter)"
         range 0 30
         default 20
+
     config SPA_RX_GPIO
         int "UART1 RX GPIO (through the existing spa level converter)"
         range 0 30
         default 19
+
     config SPA_LED_GPIO
         int "WS2812 status LED GPIO"
         range 0 30
         default 10
+
     config SPA_LED_BRIGHTNESS
         int "Status LED brightness (per colour channel)"
         range 1 255
         default 16
+
     config SPA_RESET_GPIO
-        int "Active-low BOOT button GPIO for five-press factory reset"
+        int "Active-low BOOT button GPIO for factory reset / alternate firmware"
         range 0 30
         default 9
+
+    config SPA_RELEASE_MANIFEST_URL
+        string "Release firmware manifest URL"
+        default "https://github.com/wayne-love/EspySpa-Matter/releases/latest/download/manifest.json"
+
+    config SPA_DEVELOPMENT_MANIFEST_URL
+        string "Development firmware manifest URL"
+        default "https://github.com/wayne-love/EspySpa-Matter/releases/download/development/manifest.json"
 endmenu
