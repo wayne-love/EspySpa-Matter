@@ -19,7 +19,7 @@ void perform_reset(intptr_t) {
 void worker(void *) {
     ResetGesture gesture;
     while (true) {
-        if (gesture.sample(gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0, now_ms())) {
+        if (gesture.sample(pressed, now_ms())) {
             ESP_LOGW(TAG, "Five BOOT presses confirmed; factory reset requested");
             status_led_reset_pending(true);
             // Allow the LED's independent task to show its purple confirmation.
