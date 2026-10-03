@@ -90,10 +90,12 @@ jobs:
             channel="development"
             asset_base="https://github.com/${GITHUB_REPOSITORY}/releases/download/development"
           fi
-          echo "ESPYSPA_VERSION=$version" >> "$GITHUB_ENV"
-          echo "ESPYSPA_CHANNEL=$channel" >> "$GITHUB_ENV"
-          echo "ESPYSPA_GIT_COMMIT=$short_sha" >> "$GITHUB_ENV"
-          echo "ESPYSPA_ASSET_BASE=$asset_base" >> "$GITHUB_ENV"
+          {
+            echo "ESPYSPA_VERSION=$version"
+            echo "ESPYSPA_CHANNEL=$channel"
+            echo "ESPYSPA_GIT_COMMIT=$short_sha"
+            echo "ESPYSPA_ASSET_BASE=$asset_base"
+          } >> "$GITHUB_ENV"
 
       - name: Build Matter over Thread firmware
         shell: bash
