@@ -6,7 +6,8 @@
 #include "esp_openthread_lock.h"
 #include "openthread/thread.h"
 #include "openthread/ip6.h"
-#include "cJSON.h"\n#include <cstring>
+#include "cJSON.h"
+#include <cstring>
 namespace {
 const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>EspySpa diagnostics</title>
 <style>
