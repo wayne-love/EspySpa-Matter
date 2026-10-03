@@ -22,6 +22,7 @@ void spa_start();
 void matter_start();
 void matter_publish();
 void diagnostics_start();
+void firmware_web_start();
 std::string matter_status();
 
 struct MatterIndicator { bool initialized, paired, window_open, pairing; uint64_t failed_at_ms; };
@@ -41,3 +42,5 @@ esp_err_t firmware_set_update_channel(const std::string &channel);
 esp_err_t firmware_start_update();
 esp_err_t firmware_reboot_alternate();
 esp_err_t firmware_reboot_current();
+void firmware_management_unlock();
+bool firmware_management_is_unlocked();
