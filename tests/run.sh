@@ -13,3 +13,7 @@ ASAN_OPTIONS=detect_leaks=0 ./.host-led-tests
 "$compiler" -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g \
     -Imain tests/reset_gesture_test.cpp -o .host-reset-tests
 ASAN_OPTIONS=detect_leaks=0 ./.host-reset-tests
+
+"$compiler" -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+    -Imain tests/alternate_boot_gesture_test.cpp -o .host-alt-boot-tests
+ASAN_OPTIONS=detect_leaks=0 ./.host-alt-boot-tests

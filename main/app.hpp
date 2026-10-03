@@ -3,6 +3,7 @@
 #include "esp_err.h"
 #include <string>
 #include <vector>
+
 struct Transaction { uint64_t ms; std::string tx, rx, result; };
 struct Snapshot {
     spa::State state;
@@ -13,6 +14,7 @@ struct Snapshot {
     std::string raw, error;
     std::vector<Transaction> transactions;
 };
+
 uint64_t now_ms();
 Snapshot snapshot();
 esp_err_t submit(spa::Request request);
@@ -20,6 +22,7 @@ void spa_start();
 void matter_start();
 void matter_publish();
 void diagnostics_start();
+void firmware_web_start();
 std::string matter_status();
 
 struct MatterIndicator { bool initialized, paired, window_open, pairing; uint64_t failed_at_ms; };
@@ -31,3 +34,13 @@ std::string status_led_json();
 
 void reset_button_start();
 void status_led_reset_pending(bool pending);
+
+void firmware_update_start();
+std::string firmware_info_json();
+std::string firmware_update_channel();
+esp_err_t firmware_set_update_channel(const std::string &channel);
+esp_err_t firmware_start_update();
+esp_err_t firmware_reboot_alternate();
+esp_err_t firmware_reboot_current();
+void firmware_management_unlock();
+bool firmware_management_is_unlocked();
