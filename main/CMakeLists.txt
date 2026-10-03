@@ -7,6 +7,7 @@ idf_component_register(
         "status_led.cpp"
         "reset_button.cpp"
         "firmware_update.cpp"
+        "firmware_web.cpp"
     INCLUDE_DIRS "."
     REQUIRES
         spa_protocol
