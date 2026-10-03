@@ -34,6 +34,10 @@ constexpr const char *NVS_NAMESPACE = "firmware";
 constexpr const char *NVS_CHANNEL_KEY = "channel";
 constexpr size_t MANIFEST_LIMIT = 4096;
 constexpr uint32_t VALIDATION_DELAY_MS = 30000;
+constexpr uint32_t MANAGEMENT_UNLOCK_MS = 60000;
+constexpr unsigned MAX_HTTP_REDIRECTS = 5;
+
+volatile uint32_t management_unlocked_until_ms = 0;
 
 SemaphoreHandle_t state_mutex;
 bool update_busy = false;
@@ -93,6 +97,27 @@ const char *manifest_url_for(const std::string &channel) {
     return channel == "release" ? CONFIG_SPA_RELEASE_MANIFEST_URL : CONFIG_SPA_DEVELOPMENT_MANIFEST_URL;
 }
 
+esp_err_t open_stream_follow_redirects(esp_http_client_handle_t client, int64_t &content_length) {
+    for (unsigned redirects = 0; redirects <= MAX_HTTP_REDIRECTS; ++redirects) {
+        esp_err_t err = esp_http_client_open(client, 0);
+        if (err != ESP_OK) return err;
+
+        content_length = esp_http_client_fetch_headers(client);
+        const int status = esp_http_client_get_status_code(client);
+        if (status >= 200 && status < 300) return ESP_OK;
+
+        if (status < 300 || status >= 400 || redirects == MAX_HTTP_REDIRECTS) {
+            esp_http_client_close(client);
+            return ESP_ERR_INVALID_RESPONSE;
+        }
+
+        err = esp_http_client_set_redirection(client);
+        esp_http_client_close(client);
+        if (err != ESP_OK) return err;
+    }
+    return ESP_ERR_INVALID_RESPONSE;
+}
+
 esp_err_t fetch_text(const char *url, std::string &body) {
     esp_http_client_config_t config{};
     config.url = url;
@@ -103,24 +128,16 @@ esp_err_t fetch_text(const char *url, std::string &body) {
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return ESP_ERR_NO_MEM;
 
-    esp_err_t err = esp_http_client_open(client, 0);
+    int64_t content_length = -1;
+    esp_err_t err = open_stream_follow_redirects(client, content_length);
     if (err != ESP_OK) {
         esp_http_client_cleanup(client);
         return err;
     }
-
-    int64_t content_length = esp_http_client_fetch_headers(client);
     if (content_length > static_cast<int64_t>(MANIFEST_LIMIT)) {
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         return ESP_ERR_INVALID_SIZE;
-    }
-
-    int status = esp_http_client_get_status_code(client);
-    if (status < 200 || status >= 300) {
-        esp_http_client_close(client);
-        esp_http_client_cleanup(client);
-        return ESP_FAIL;
     }
 
     std::array<char, 512> buffer{};
@@ -204,16 +221,13 @@ esp_err_t download_to_inactive_slot(const Manifest &manifest) {
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return ESP_ERR_NO_MEM;
 
-    esp_err_t err = esp_http_client_open(client, 0);
+    int64_t length = -1;
+    esp_err_t err = open_stream_follow_redirects(client, length);
     if (err != ESP_OK) {
         esp_http_client_cleanup(client);
         return err;
     }
-
-    int64_t length = esp_http_client_fetch_headers(client);
-    int status = esp_http_client_get_status_code(client);
-    if (status < 200 || status >= 300 || length == 0 ||
-        (length > 0 && length > static_cast<int64_t>(target->size))) {
+    if (length == 0 || (length > 0 && length > static_cast<int64_t>(target->size))) {
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         return ESP_ERR_INVALID_SIZE;
@@ -341,6 +355,21 @@ void validation_task(void *) {
     vTaskDelete(nullptr);
 }
 
+bool partition_is_bootable(const esp_partition_t *partition) {
+    if (!partition) return false;
+
+    esp_app_desc_t desc{};
+    if (esp_ota_get_partition_description(partition, &desc) != ESP_OK) return false;
+
+    esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+    const esp_err_t state_err = esp_ota_get_state_partition(partition, &state);
+    if (state_err == ESP_OK &&
+        (state == ESP_OTA_IMG_INVALID || state == ESP_OTA_IMG_ABORTED)) {
+        return false;
+    }
+    return true;
+}
+
 const esp_partition_t *alternate_partition() {
     const esp_partition_t *running = esp_ota_get_running_partition();
     if (!running) return nullptr;
@@ -348,7 +377,9 @@ const esp_partition_t *alternate_partition() {
         running->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_0
             ? ESP_PARTITION_SUBTYPE_APP_OTA_1
             : ESP_PARTITION_SUBTYPE_APP_OTA_0;
-    return esp_partition_find_first(ESP_PARTITION_TYPE_APP, other, nullptr);
+    const esp_partition_t *partition =
+        esp_partition_find_first(ESP_PARTITION_TYPE_APP, other, nullptr);
+    return partition_is_bootable(partition) ? partition : nullptr;
 }
 } // namespace
 
@@ -365,6 +396,19 @@ void firmware_update_start() {
 
 std::string firmware_update_channel() {
     return load_channel();
+}
+
+void firmware_management_unlock() {
+    management_unlocked_until_ms =
+        static_cast<uint32_t>(now_ms()) + MANAGEMENT_UNLOCK_MS;
+    ESP_LOGI(TAG, "Firmware management unlocked for %u seconds",
+             static_cast<unsigned>(MANAGEMENT_UNLOCK_MS / 1000));
+}
+
+bool firmware_management_is_unlocked() {
+    const uint32_t now = static_cast<uint32_t>(now_ms());
+    const uint32_t until = management_unlocked_until_ms;
+    return until != 0 && static_cast<int32_t>(until - now) > 0;
 }
 
 esp_err_t firmware_set_update_channel(const std::string &channel) {
@@ -451,6 +495,8 @@ std::string firmware_info_json() {
     json += ",\"update_state\":" + json_escape(current_state);
     json += ",\"update_error\":" + json_escape(current_error);
     json += ",\"update_target_version\":" + json_escape(current_target);
+    json += ",\"management_unlocked\":" +
+            std::string(firmware_management_is_unlocked() ? "true" : "false");
     if (other_valid) {
         json += ",\"alternate\":{\"partition\":" + json_escape(other->label);
         json += ",\"version\":" + json_escape(other_desc.version) + "}";
