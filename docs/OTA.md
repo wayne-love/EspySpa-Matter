@@ -66,4 +66,4 @@ A button already held during power-on is ignored by this application gesture bec
 6. A three-second BOOT hold after startup can also select the alternate image.
 7. Five BOOT presses continue to perform the existing Matter/Thread factory reset.
 
-The 4 MB flash layout intentionally retains two approximately 1.875 MiB application slots. There is not enough safe headroom for a third full recovery application without materially shrinking both OTA slots.
+The target module has 8 MB flash. The partition table therefore provides two approximately 3.875 MiB OTA application slots, leaving ample headroom for the updater, Matter stack and future firmware growth while retaining A/B rollback.
