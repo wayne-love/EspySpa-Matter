@@ -16,7 +16,6 @@ idf_component_register(
         esp_timer
         esp_http_server
         esp_http_client
-        esp_https_ota
         app_update
         json
         openthread
