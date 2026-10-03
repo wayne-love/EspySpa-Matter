@@ -70,12 +70,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Restore compiler cache
-        uses: actions/cache@v4
+        id: ccache-restore
+        uses: actions/cache/restore@v4
         with:
           path: .ccache
-          key: ccache-v1-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h', 'partitions.csv', '.github/workflows/validate.yml') }}-${{ github.sha }}
+          key: ccache-v2-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h') }}-${{ github.sha }}
           restore-keys: |
-            ccache-v1-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h', 'partitions.csv', '.github/workflows/validate.yml') }}-
+            ccache-v2-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h') }}-
+            ccache-v2-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-
       - name: Select firmware identity
         shell: bash
         run: |
@@ -113,6 +115,14 @@ jobs:
           idf.py set-target esp32c6
           idf.py build
           ccache --show-stats
+
+      - name: Save compiler cache
+        if: ${{ steps.ccache-restore.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .ccache
+          key: ccache-v2-${{ runner.os }}-esp32c6-idf5.4.1-matter4cedd4ad-${{ hashFiles('sdkconfig.defaults', 'main/idf_component.yml', 'main/CHIPProjectConfig.h') }}-${{ github.sha }}
+
       - name: Check generated configuration, images and OTA space
         run: python3 scripts/check_build.py
 
