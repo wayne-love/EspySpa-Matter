@@ -38,7 +38,7 @@ A physical factory reset is available: press and release BOOT on GPIO9 five time
 
 ## Download contents
 
-The **espyspa-matter-development-esp32c6** artifact contains the application, bootloader, partition table, `ota_data_initial.bin` and `flasher_args.json`. Use the offsets in that JSON for a complete initial flash. The pipeline checks that every image referenced by the flashing metadata exists before uploading.
+The **espyspa-matter-development-esp32c6** artifact contains one application image, **`espyspa-matter.bin`**, plus the bootloader, partition table, `ota_data_initial.bin` and `flasher_args.json`. Use the offsets in that JSON for a complete initial flash. The JSON references the same hyphenated application filename included in the artifact. ESP-IDF internally builds `espyspa_matter.bin`, but that internal filename is not uploaded. The pipeline checks that every image referenced by the flashing metadata exists before uploading.
 
 The **espyspa-matter-debug-esp32c6** artifact contains the matching ELF with debug symbols. It is useful for decoding crash backtraces and is not required for flashing. Keep it with the corresponding firmware version when investigating a crash.
 
