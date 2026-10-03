@@ -44,12 +44,18 @@ Before use, verify on the board: red during first pairing; yellow with Thread un
 
 ## Factory reset
 
-With the device running normally, **press and release BOOT five times within five seconds**. The button is GPIO9, active low, with an internal pull-up. Each press and release must be stable for at least 30 ms; the five-second window runs from the first debounced press to the fifth debounced release. A held button is one press, and a button already held when the handler starts is ignored until released. An incomplete or expired sequence does nothing.
+With the device running normally, **press and release BOOT five times within five seconds**. The **fifth release triggers the factory reset**. No sixth press is required. When the LED begins its purple three-flash confirmation, leave BOOT released and do not press it again; the connector will clear its Matter/Thread configuration and reboot automatically.
 
-After the fifth release, the LED shows purple three-flash confirmation for approximately 1.5 seconds. Keep BOOT released. The handler waits for release if you press it again during confirmation, then requests the SDK factory reset on the CHIP task. This removes saved Matter fabrics, Thread credentials and ESP-Matter attribute settings and reboots; application images, bootloader and factory identity data are retained. There are currently no separate application configuration namespaces to erase.
+The button is GPIO9, active low, with an internal pull-up. Each press and release must be stable for at least 30 ms; the five-second window runs from the first debounced press to the fifth debounced release. A held button is one press, and a button already held when the handler starts is ignored until released. An incomplete or expired sequence does nothing.
+
+The purple confirmation lasts approximately 1.5 seconds. The reset removes saved Matter fabrics, Thread credentials and ESP-Matter attribute settings. Application images, bootloader and factory identity data are retained. There are currently no separate application configuration namespaces to erase.
 
 After reboot, expect red single flashes when the initial commissioning window opens. Pair as a new accessory using the development code **34970112332**. Remove any stale eSpa entry left in a controller before adding it again. Reset applies only to the connector: it does not reset the spa controller or send spa commands. There is no network reset endpoint.
 
+### Developer note
+
+GPIO9 is also the ESP32-C6 boot strap pin. If BOOT is pressed again during the purple confirmation period, the firmware waits for the button to be released before rebooting so it does not accidentally enter ROM download mode. This is a safety guard, not a sixth step in the reset sequence.
+
 EN remains a normal hardware reboot. Holding BOOT while powering up or pressing EN selects the ROM download mode; use the five-press gesture only after normal firmware startup. If factory reset cannot be scheduled, the error is logged and the LED returns to normal status; reboot before trying the gesture again. LED-driver failure does not disable the physical reset gesture.
 
-Hardware acceptance: four presses do nothing; five presses reset and remove fabrics/Thread state; slow or bouncing presses do not reset; holding BOOT during normal operation does not reset; after reset the development code commissions successfully; a normal reboot retains pairing.
+Hardware acceptance: four presses do nothing; the fifth release resets and removes fabrics/Thread state; no sixth press is required; slow or bouncing presses do not reset; holding BOOT during normal operation does not reset; after reset the development code commissions successfully; a normal reboot retains pairing.
