@@ -22,7 +22,11 @@ class PackageFirmwareTests(unittest.TestCase):
             "flash_files": {
                 "0x0": "bootloader/bootloader.bin",
                 "0x20000": packager.INTERNAL_APP_NAME,
-            }
+            },
+            "app": {
+                "offset": "0x20000",
+                "file": packager.INTERNAL_APP_NAME,
+            },
         }
         self.write_metadata()
 
@@ -37,7 +41,26 @@ class PackageFirmwareTests(unittest.TestCase):
 
         packaged = json.loads((self.build / "flasher_args.json").read_text())
         self.assertEqual(packaged["flash_files"]["0x20000"], packager.PUBLIC_APP_NAME)
+        self.assertEqual(packaged["app"]["file"], packager.PUBLIC_APP_NAME)
         self.assertNotIn(packager.INTERNAL_APP_NAME, packaged["flash_files"].values())
+
+    def test_missing_app_metadata_fails(self):
+        del self.metadata["app"]
+        self.write_metadata()
+        with self.assertRaisesRegex(ValueError, "missing app.file"):
+            packager.package_firmware(self.build)
+
+    def test_mismatched_app_file_fails(self):
+        self.metadata["app"]["file"] = "other.bin"
+        self.write_metadata()
+        with self.assertRaisesRegex(ValueError, "Expected app.file"):
+            packager.package_firmware(self.build)
+
+    def test_mismatched_app_offset_fails(self):
+        self.metadata["app"]["offset"] = "0x30000"
+        self.write_metadata()
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            packager.package_firmware(self.build)
 
     def test_missing_internal_image_fails(self):
         (self.build / packager.INTERNAL_APP_NAME).unlink()
