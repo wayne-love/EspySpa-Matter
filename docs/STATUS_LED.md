@@ -5,6 +5,7 @@
 | Spa serial RX (ESP input) | 19 |
 | Spa serial TX (ESP output) | 20 |
 | WS2812 / NeoPixel data | 10 |
+| BOOT factory-reset button (active low) | 9 |
 
 UART1 uses 38400 baud, 8N1 through the existing level converter. RX/TX labels here are from the ESP's perspective: spa TX connects to ESP RX19; ESP TX20 connects to spa RX. Native USB logging remains separate.
 
@@ -22,9 +23,10 @@ The LED uses colour for phase and repeated flash groups for status. A flash last
 | Yellow | Two flashes | Thread disconnected after an attachment during this boot |
 | Green | One flash | Thread attached, waiting for the first valid spa RF response |
 | Green | Two flashes | Thread attached but spa state stale/unavailable after a successful poll |
+| Purple | Three flashes | Factory reset confirmed; clearing pairing configuration and rebooting |
 | Green | Solid | Stored Matter fabric, Thread attached and fresh spa state |
 
-Commissioning activity/fail-safe expiry takes priority over operational status. A closed pairing window does not automatically reopen. The LED does not perform resets or commissioning actions.
+Commissioning activity/fail-safe expiry takes priority over operational status. A closed pairing window does not automatically reopen. The separate BOOT-button handler requests factory reset and overrides the indicator with purple confirmation.
 
 A stored fabric is not proof that the controller completed pairing: an aborted pairing can therefore show yellow or green. The indicator reports device state, not controller visibility. Thread attachment means child/router/leader role; it does not establish that every controller or computer has a working route. Solid green also does not certify safe spa operation or command success.
 
@@ -39,3 +41,15 @@ Pin and brightness defaults are in `sdkconfig.defaults` and **EspySpa hardware a
 The driver is pinned to `espressif/led_strip` 2.5.5, uses ESP32-C6 RMT and WS2812 GRB colour order. It is installed by the remote build; no local SDK is required.
 
 Before use, verify on the board: red during first pairing; yellow with Thread unavailable; blinking green with spa UART disconnected; solid green after valid RF; loss and recovery of Thread/UART; commissioning fail-safe indication; correct colour order/brightness. Host tests cover policy and timing, while the GitHub firmware build checks SDK compatibility. Physical LED and network behaviour still require hardware validation.
+
+## Factory reset
+
+With the device running normally, **press and release BOOT five times within five seconds**. The button is GPIO9, active low, with an internal pull-up. Each press and release must be stable for at least 30 ms; the five-second window runs from the first debounced press to the fifth debounced release. A held button is one press, and a button already held when the handler starts is ignored until released. An incomplete or expired sequence does nothing.
+
+After the fifth release, the LED shows purple three-flash confirmation for approximately 1.5 seconds. Keep BOOT released. The handler waits for release if you press it again during confirmation, then requests the SDK factory reset on the CHIP task. This removes saved Matter fabrics, Thread credentials and ESP-Matter attribute settings and reboots; application images, bootloader and factory identity data are retained. There are currently no separate application configuration namespaces to erase.
+
+After reboot, expect red single flashes when the initial commissioning window opens. Pair as a new accessory using the development code **34970112332**. Remove any stale eSpa entry left in a controller before adding it again. Reset applies only to the connector: it does not reset the spa controller or send spa commands. There is no network reset endpoint.
+
+EN remains a normal hardware reboot. Holding BOOT while powering up or pressing EN selects the ROM download mode; use the five-press gesture only after normal firmware startup. If factory reset cannot be scheduled, the error is logged and the LED returns to normal status; reboot before trying the gesture again. LED-driver failure does not disable the physical reset gesture.
+
+Hardware acceptance: four presses do nothing; five presses reset and remove fabrics/Thread state; slow or bouncing presses do not reset; holding BOOT during normal operation does not reset; after reset the development code commissions successfully; a normal reboot retains pairing.

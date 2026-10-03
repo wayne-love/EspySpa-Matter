@@ -30,6 +30,8 @@ int main() {
     CHECK(p.red && !p.green && p.flashes == 2);
     CHECK(lit(p, 0) && lit(p, 199) && !lit(p, 200));
     CHECK(lit(p, 400) && !lit(p, 600) && !lit(p, 800) && !lit(p, 1999) && lit(p, 2000));
+    p = pattern(Mode::FactoryReset);
+    CHECK(p.red && !p.green && p.blue && p.flashes == 3);
     p = pattern(Mode::Healthy);
     CHECK(!p.red && p.green && p.flashes == 0);
     for (unsigned t = 0; t < 10000; t += 50) CHECK(lit(p, t));

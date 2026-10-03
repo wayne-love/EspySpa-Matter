@@ -12,6 +12,7 @@ extern "C" void app_main() {
     status_led_start();
     ESP_LOGI(TAG, "Starting Matter over Thread");
     matter_start();
+    reset_button_start();
     ESP_LOGI(TAG, "Starting IPv6 diagnostics on port 8080");
     diagnostics_start();
     spa_worker_start();

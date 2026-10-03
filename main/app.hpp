@@ -28,3 +28,6 @@ MatterIndicator matter_indicator();
 SpaIndicator spa_indicator();
 void status_led_start();
 std::string status_led_json();
+
+void reset_button_start();
+void status_led_reset_pending(bool pending);

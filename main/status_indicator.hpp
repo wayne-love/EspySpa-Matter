@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 namespace indicator {
-enum class Mode : uint8_t { Starting, Ready, Pairing, WindowClosed, PairingFailed, ThreadWaiting, ThreadLost, SpaWaiting, SpaLost, Healthy };
+enum class Mode : uint8_t { Starting, Ready, Pairing, WindowClosed, PairingFailed, ThreadWaiting, ThreadLost, SpaWaiting, SpaLost, Healthy, FactoryReset };
 struct Inputs {
     bool initialized, paired, window_open, pairing, pairing_failed;
     bool thread_attached, thread_seen, spa_fresh, spa_seen;
@@ -27,6 +27,7 @@ inline Pattern pattern(Mode mode) {
     case Mode::ThreadLost: return {1, 1, 0, 2, "thread_connection_lost"};
     case Mode::SpaWaiting: return {0, 1, 0, 1, "waiting_for_spa"};
     case Mode::SpaLost: return {0, 1, 0, 2, "spa_state_stale"};
+    case Mode::FactoryReset: return {1, 0, 1, 3, "factory_reset_pending"};
     case Mode::Healthy: return {0, 1, 0, 0, "operating"};
     }
     return {1, 0, 0, 4, "invalid_status"};

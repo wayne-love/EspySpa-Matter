@@ -15,4 +15,8 @@ menu "EspySpa hardware and diagnostics"
         int "Status LED brightness (per colour channel)"
         range 1 255
         default 16
+    config SPA_RESET_GPIO
+        int "Active-low BOOT button GPIO for five-press factory reset"
+        range 0 30
+        default 9
 endmenu
