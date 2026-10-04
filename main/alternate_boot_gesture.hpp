@@ -6,8 +6,8 @@ public:
     static constexpr uint64_t HOLD_MS = 3000;
 
     bool sample(bool pressed, uint64_t now_ms) {
-        // A BOOT button held while power is applied is a strap condition, not
-        // an application gesture. Arm only after observing a release.
+        // Ignore a button already held at startup.
+        // Arm only after observing a release.
         if (!armed_) {
             if (!pressed) armed_ = true;
             return false;

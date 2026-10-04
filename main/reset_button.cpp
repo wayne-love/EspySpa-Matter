@@ -48,7 +48,7 @@ void worker(void *) {
     uint64_t last_sample_ms = 0;
     uint64_t last_monitor_ms = now_ms();
     unsigned polled_changes = 0;
-    ESP_LOGI(TAG, "BOOT gesture handler ready on GPIO%d (level=%d); five press/releases within five seconds",
+    ESP_LOGI(TAG, "GP button gesture handler ready on GPIO%d (level=%d); five press/releases within five seconds",
              CONFIG_SPA_RESET_GPIO, pressed ? 0 : 1);
 
     while (true) {
@@ -57,7 +57,7 @@ void worker(void *) {
         uint64_t now = received ? edge.at_ms : now_ms();
         if (received) {
             pressed = edge.pressed;
-            ESP_LOGI(TAG, "BOOT input %s on GPIO%d at %llu ms",
+            ESP_LOGI(TAG, "GP button input %s on GPIO%d at %llu ms",
                      pressed ? "pressed" : "released", CONFIG_SPA_RESET_GPIO,
                      static_cast<unsigned long long>(edge.at_ms));
         } else {
@@ -66,7 +66,7 @@ void worker(void *) {
             const bool sampled = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0;
             if (sampled != pressed) {
                 ++polled_changes;
-                ESP_LOGW(TAG, "BOOT input %s on GPIO%d detected by polling at %llu ms (no queued interrupt)",
+                ESP_LOGW(TAG, "GP button input %s on GPIO%d detected by polling at %llu ms (no queued interrupt)",
                          sampled ? "pressed" : "released", CONFIG_SPA_RESET_GPIO,
                          static_cast<unsigned long long>(now));
             }
@@ -80,7 +80,7 @@ void worker(void *) {
             reset = ResetGesture{}; alternate = AlternateBootGesture{};
             pressed = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0;
             management_armed = false; previous_pressed = true; previous_count = 0;
-            ESP_LOGW(TAG, "BOOT edge buffer overflow; gesture discarded, release and retry");
+            ESP_LOGW(TAG, "GP button edge buffer overflow; gesture discarded, release and retry");
             continue;
         }
 
@@ -92,7 +92,7 @@ void worker(void *) {
         previous_pressed = pressed;
 
         if (alternate.sample(pressed, now)) {
-            ESP_LOGW(TAG, "Three-second BOOT hold confirmed; alternate firmware requested");
+            ESP_LOGW(TAG, "Three-second GP button hold confirmed; alternate firmware requested");
             esp_err_t err = firmware_reboot_alternate();
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "Alternate firmware boot failed: %s", esp_err_to_name(err));
@@ -105,28 +105,28 @@ void worker(void *) {
 
         const bool reset_requested = reset.sample(pressed, now);
         if (reset.count() != previous_count) {
-            if (reset.count()) ESP_LOGI(TAG, "BOOT factory-reset press %u/5", reset.count());
-            else ESP_LOGI(TAG, "BOOT factory-reset sequence expired; start again");
+            if (reset.count()) ESP_LOGI(TAG, "GP button factory-reset press %u/5", reset.count());
+            else ESP_LOGI(TAG, "GP button factory-reset sequence expired; start again");
             previous_count = reset.count();
         }
         const auto monitor_ms = now_ms();
         if (monitor_ms - last_monitor_ms >= 5000) {
             last_monitor_ms = monitor_ms;
-            ESP_LOGI(TAG, "BOOT monitor: GPIO%d level=%d count=%u/5 interrupts=%lu polled_changes=%u",
+            ESP_LOGI(TAG, "GP button monitor: GPIO%d level=%d count=%u/5 interrupts=%lu polled_changes=%u",
                      CONFIG_SPA_RESET_GPIO, gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)),
                      reset.count(), static_cast<unsigned long>(button_interrupts.load(std::memory_order_relaxed)),
                      polled_changes);
         }
         if (reset_requested) {
-            ESP_LOGW(TAG, "Five BOOT presses confirmed; factory reset requested");
+            ESP_LOGW(TAG, "Five GP button presses confirmed; factory reset requested");
             status_led_reset_pending(true);
             gpio_isr_handler_remove(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO));
 
             // Allow the LED's independent task to show its purple confirmation.
             vTaskDelay(pdMS_TO_TICKS(1500));
 
-            // GPIO9 is a boot strap. Wait for release if it was pressed again
-            // during confirmation.
+            // Wait for a stable button release before restarting, including
+            // a press made during confirmation.
             unsigned released = 0;
             while (released < 5) {
                 released = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO))

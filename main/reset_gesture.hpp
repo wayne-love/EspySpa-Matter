@@ -17,7 +17,7 @@ public:
                 ++count_;
             } else if (count_ == 5 && settled_ms - first_press_ms_ <= 5000) {
                 triggered_ = true;
-                return true; // Fifth release: never reboot with the strap held low.
+                return true; // Fifth release: require a completed button click.
             }
         }
         if (count_ && now_ms - first_press_ms_ > 5000) count_ = 0;

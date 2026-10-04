@@ -4,7 +4,7 @@
 int main() {
     {
         AlternateBootGesture g;
-        // Startup-held BOOT must not select alternate firmware.
+        // Startup-held GP button must not select alternate firmware.
         assert(!g.sample(true, 0));
         assert(!g.sample(true, 5000));
         assert(!g.sample(false, 5010));

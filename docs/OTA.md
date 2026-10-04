@@ -48,13 +48,13 @@ The diagnostics page exposes:
 
 Mutation endpoints require the non-simple `X-EspySpa-Action: 1` header. This prevents an unrelated browser page from triggering a simple cross-origin form request. These controls are still local administrative controls, not an authentication boundary.
 
-## Physical BOOT button
+## Physical GP button
 
-GPIO9 retains the existing five-press factory reset gesture.
+GPIO21 retains the existing five-press factory reset gesture.
 
-After the application has observed the BOOT button released at least once, holding it continuously for three seconds requests the alternate valid OTA image and reboots.
+After the application has observed the GP button released at least once, holding it continuously for three seconds requests the alternate valid OTA image and reboots.
 
-A button already held during power-on is ignored by this application gesture because GPIO9 is also an ESP32-C6 boot strap. Consequently this mechanism can recover from a bad application that still reaches the button task; a completely unbootable new image is handled by ESP-IDF automatic rollback instead.
+A button already held during power-on is ignored by this application gesture to avoid an accidental action on startup. Consequently this mechanism can recover from a bad application that still reaches the button task; a completely unbootable new image is handled by ESP-IDF automatic rollback instead.
 
 ## Recovery model
 
@@ -63,7 +63,7 @@ A button already held during power-on is ignored by this application gesture bec
 3. Healthy startup confirms it after 30 seconds.
 4. An early crash/reset permits automatic rollback.
 5. The web UI can deliberately select the alternate image.
-6. A three-second BOOT hold after startup can also select the alternate image.
-7. Five BOOT presses continue to perform the existing Matter/Thread factory reset.
+6. A three-second GP button hold after startup can also select the alternate image.
+7. Five GP button presses continue to perform the existing Matter/Thread factory reset.
 
 The target module has 8 MB flash. The partition table therefore provides two approximately 3.875 MiB OTA application slots, leaving ample headroom for the updater, Matter stack and future firmware growth while retaining A/B rollback.
