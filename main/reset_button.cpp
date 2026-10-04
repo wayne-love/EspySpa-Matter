@@ -16,9 +16,11 @@ const char *TAG = "factory_reset";
 struct ButtonEdge { bool pressed; uint64_t at_ms; };
 QueueHandle_t button_edges = nullptr;
 std::atomic<uint32_t> edge_overflow{0};
+std::atomic<uint32_t> button_interrupts{0};
 static_assert(std::atomic<uint32_t>::is_always_lock_free, "Button ISR needs lock-free overflow flag");
 
 void button_edge(void *) {
+    button_interrupts.fetch_add(1, std::memory_order_relaxed);
     const ButtonEdge edge{gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0, now_ms()};
     BaseType_t wake = pdFALSE;
     if (xQueueSendFromISR(button_edges, &edge, &wake) != pdTRUE) edge_overflow.store(1);
@@ -44,6 +46,8 @@ void worker(void *) {
     bool pressed = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0;
     unsigned previous_count = 0;
     uint64_t last_sample_ms = 0;
+    uint64_t last_monitor_ms = now_ms();
+    unsigned polled_changes = 0;
     ESP_LOGI(TAG, "BOOT gesture handler ready on GPIO%d (level=%d); five press/releases within five seconds",
              CONFIG_SPA_RESET_GPIO, pressed ? 0 : 1);
 
@@ -56,6 +60,17 @@ void worker(void *) {
             ESP_LOGI(TAG, "BOOT input %s on GPIO%d at %llu ms",
                      pressed ? "pressed" : "released", CONFIG_SPA_RESET_GPIO,
                      static_cast<unsigned long long>(edge.at_ms));
+        } else {
+            // Interrupt capture preserves short clicks, but reset must remain
+            // usable when no interrupt arrives. Sample the physical pin too.
+            const bool sampled = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0;
+            if (sampled != pressed) {
+                ++polled_changes;
+                ESP_LOGW(TAG, "BOOT input %s on GPIO%d detected by polling at %llu ms (no queued interrupt)",
+                         sampled ? "pressed" : "released", CONFIG_SPA_RESET_GPIO,
+                         static_cast<unsigned long long>(now));
+            }
+            pressed = sampled;
         }
         // An ISR may enqueue at the timeout boundary; never move the clock back.
         if (now < last_sample_ms) now = last_sample_ms;
@@ -93,6 +108,14 @@ void worker(void *) {
             if (reset.count()) ESP_LOGI(TAG, "BOOT factory-reset press %u/5", reset.count());
             else ESP_LOGI(TAG, "BOOT factory-reset sequence expired; start again");
             previous_count = reset.count();
+        }
+        const auto monitor_ms = now_ms();
+        if (monitor_ms - last_monitor_ms >= 5000) {
+            last_monitor_ms = monitor_ms;
+            ESP_LOGI(TAG, "BOOT monitor: GPIO%d level=%d count=%u/5 interrupts=%lu polled_changes=%u",
+                     CONFIG_SPA_RESET_GPIO, gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)),
+                     reset.count(), static_cast<unsigned long>(button_interrupts.load(std::memory_order_relaxed)),
+                     polled_changes);
         }
         if (reset_requested) {
             ESP_LOGW(TAG, "Five BOOT presses confirmed; factory reset requested");
