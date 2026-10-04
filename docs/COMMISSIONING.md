@@ -56,11 +56,11 @@ An existing Home accessory can retain the name saved by its controller after a f
 |---|---|
 | 1 | eSpa Temperature — water temperature and heating setpoint |
 | 2 | eSpa Light |
-| 3–7 | eSpa Pump 1 through eSpa Pump 5 |
+| 3–7 | Installed eSpa pumps, discovered after the first valid RF of each boot |
 | 8 | eSpa Blower |
 | 9 | Matter aggregator for the named spa controls |
 
-The UART-backed controls now carry Bridged Device Basic Information with individual NodeLabel and ProductName attributes, grouped under an aggregator. Controller support determines how endpoints appear; verify that Apple Home uses these defaults during a new addition. Previously saved names may require manual renaming. Rename the switches and hide pumps absent from your spa. The thermostat supports Heat and setpoints from 5–41 °C in 0.2 °C steps; it does not implement global heating Off. Pump On selects the highest supported manual mode; Off selects mode 0. The spa retains its safety and filtration logic. See [README.md](../README.md) for command and readback behaviour.
+The UART-backed controls now carry Bridged Device Basic Information with individual NodeLabel and ProductName attributes, grouped under an aggregator. Controller support determines how endpoints appear; verify that Apple Home uses these defaults during a new addition. Previously saved names may require manual renaming. Only installed pumps are added, after valid RF; light and blower are assumed present. Pump/blower endpoints are Matter Fans with a speed setting for slider/stepped UI, retained OnOff and Mode Select for exact advertised pump modes and blower Off/Ramp/Variable 1–5. The blower fan Auto choice represents Ramp. Apple Home presentation needs hardware validation. The thermostat supports Heat and setpoints from 5–41 °C in 0.2 °C steps. See [native controls](CONTROLS.md) for per-boot discovery, readback and UI limitations.
 
 ## Open diagnostics without a serial cable
 
@@ -82,6 +82,12 @@ Check Thread role (2 child, 3 router or 4 leader), Matter fabric count, and spa 
 | Controls fail or temperature unavailable | Check diagnostic freshness, polling errors, UART pins/levels and installed pump capabilities. |
 
 Normal firmware updates preserve pairing when NVS is retained. For an aborted pairing, unavailable old controller or lost Thread network, press and release **BOOT (GPIO9) five times within five seconds** while firmware is running. The **fifth release triggers the reset**; no sixth press is required. When the LED flashes purple, leave BOOT released. The connector clears its Matter/Thread configuration and reboots automatically ready for a new pairing. Firmware is retained. See [STATUS_LED.md](STATUS_LED.md#factory-reset) for timing and recovery details. There is no network factory-reset API. This deliberately removes every saved pairing; do not use it for a normal firmware update.
+
+### Removing from a controller
+
+When the online device receives removal of its **final Matter fabric**, it reopens basic commissioning for 300 seconds with BLE and DNS-SD advertising, retaining Thread credentials. The LED returns to ready-to-pair. If that window expires or opening fails, recovery retries while no fabrics remain and no pairing session is active. A new fabric stops recovery. Removing one of several fabrics does not trigger this flow. Logs report removal, remaining fabric count and reopening/errors.
+
+Deleting an accessory while the ESP is offline cannot deliver RemoveFabric. The ESP keeps its pairing until the physical five-press factory reset; firmware cannot infer a controller database deletion.
 
 ### Native USB startup logs
 

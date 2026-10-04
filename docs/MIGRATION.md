@@ -9,8 +9,8 @@ ESPySpa at `ca206919b4df5886a09e8c91fe82d01df1f5488a` uses Arduino, UART, MQTT d
 | Measured water | R5 field 15 / WTMP (tenths °C), not unreliable R2 PoolTemperature | Thermostat LocalTemperature (hundredths °C) |
 | Target | R6 field 8 / STMP; W40; 50–410, even values | OccupiedHeatingSetpoint, reject unsupported increments |
 | Light | R5 field 14; W14 toggles | OnOff, always fresh RF before toggling |
-| Pumps | R5 fields 18–22; S22–S26; RG fields 7–11 capabilities, 1–5 readiness | Stable OnOff endpoints; highest supported manual mode |
-| Blower | RC field 10; S28:0 Variable, :1 Ramp, :2 Off | OnOff, default on is Variable |
+| Pumps | R5 fields 18–22; S22–S26; RG fields 7–11 capabilities, 1–5 readiness | Per-boot installed endpoints; Fan speed slider, OnOff compatibility and exact advertised Mode Select |
+| Blower | RC field 10; S28:0 Variable, :1 Ramp, :2 Off | Fan slider plus Off/Ramp/Variable 1–5; S13 only after confirmed Variable |
 
 Only the required fields are parsed and validated, using register labels so lengths can vary. Duplicate/unterminated registers, invalid required values, oversize responses and missing capabilities reject the snapshot atomically. Other complete registers are ignored. The source snapshot contains identifying serial numbers in R3; diagnostic downloads may therefore contain these device identifiers. Legacy controllers lacking RG are currently unsupported rather than guessed.
 
@@ -28,6 +28,6 @@ Host tests validate the supplied SV3 fixture and protocol guards; they cannot es
 
 ## Deferred work
 
-Pump speed/Auto selection, spa NORM/ECON/AWAY/WEEK mode, lighting colour/effects/brightness, blower speed/ramp, auxiliary heater and current limits, schedules and sleep timers. Keep these out of the first pass until the basic controls are commissioned and observed. Then add controller-compatible standard endpoints/features with explicit mode mapping. Do not map HELE (auxiliary element) to a global thermostat off command.
+Spa NORM/ECON/AWAY/WEEK mode, lighting colour/effects/brightness, auxiliary heater and current limits, schedules and sleep timers. Keep these out of the first pass until the basic controls are commissioned and observed. Then add controller-compatible standard endpoints/features with explicit mode mapping. Do not map HELE (auxiliary element) to a global thermostat off command.
 
-The next engineering milestone is hardware commissioning and captured RF/ACK comparison, followed by speed/mode control and OTA/recovery. Credit allocation is not visible to the agent: this pass is bounded to the initial controls and diagnostics; do not run an open-ended migration or claim that a 50% quota is measurable.
+Pump/blower mode control is implemented as described in [CONTROLS.md](CONTROLS.md), with physical controller/UI and RF/ACK acceptance still required. Credit allocation is not visible to the agent: this pass is bounded to the initial controls and diagnostics; do not run an open-ended migration or claim that a 50% quota is measurable.
