@@ -11,3 +11,4 @@ __pycache__/
 .host-reset-tests
 .ccache/
 .host-control-tests
+.host-log-tests
