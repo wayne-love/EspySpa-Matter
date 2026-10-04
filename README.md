@@ -27,6 +27,8 @@ Initial flashing uses USB. Normal control and diagnosis use Thread. You need an 
 
 ## Factory reset
 
+For normal removal from Apple, keep the bridge online and use **iPhone Settings → General → Matter Accessories → Edit → delete the eSpa bridge → Remove From All Services**. Removing the bridge only from Home can leave Apple's separate Keychain fabric and prevent a return to pairing mode. See the [complete removal procedure](docs/COMMISSIONING.md#fully-removing-the-bridge-from-apple), including iOS menu variations and expected logs.
+
 Press and release **BOOT (GPIO9) five times within five seconds** while the firmware is running. The **fifth release triggers the reset**; no sixth press is required. When the LED flashes purple, leave BOOT released while the connector clears its pairings and Thread credentials and reboots ready to pair. Firmware and spa controller settings are retained. See [reset details](docs/STATUS_LED.md#factory-reset).
 
 ## Quality gates

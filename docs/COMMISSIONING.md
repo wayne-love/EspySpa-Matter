@@ -85,6 +85,24 @@ Normal firmware updates preserve pairing when NVS is retained. For an aborted pa
 
 ### Removing from a controller
 
+#### Fully removing the bridge from Apple
+
+Apple pairing can create separate **Apple Home** and **Apple Keychain** Matter fabrics. Removing the bridge in the Home app can leave the Keychain fabric on the ESP. Removing the bridge includes its bridged controls, but does not necessarily remove every Matter fabric. If the log reports `Fabric removed; remaining fabrics: 1`, the ESP is still paired and does not reopen commissioning.
+
+To remove all pairings and return the bridge to pairing mode:
+
+1. Keep the ESP powered on and reachable over Thread.
+2. On the iPhone, open **Settings → General → Matter Accessories** (on versions with a Matter submenu, **General → Matter → Accessories**).
+3. Find the **eSpa bridge**, tap **Edit** and the delete button, then confirm removal.
+4. Choose **Remove From All Services**. Removing only from Home or choosing **Remove from Keychain** is a different operation and is not the complete-removal procedure.
+5. Check the ESP log for `Fabric removed; remaining fabrics: 0` followed by `Last fabric removed; commissioning reopened (BLE and DNS-SD)`. The LED should flash red once per group, indicating ready-to-pair.
+
+This procedure also removes pairings with any other connected services. Skip confirmed in the issue #10 hardware test that this removed the remaining second fabric and restored pairing mode; removing the bridge only from Home left one fabric. No firmware recovery-policy change was needed for that test.
+
+See Apple's [pairing and removal instructions](https://support.apple.com/en-au/102135). Screen labels can vary with iOS version. If removal cannot reach the ESP, use the physical factory reset described above.
+
+#### Firmware recovery behaviour
+
 When the online device receives removal of its **final Matter fabric**, it reopens basic commissioning for 300 seconds with BLE and DNS-SD advertising, retaining Thread credentials. The LED returns to ready-to-pair. If that window expires or opening fails, recovery retries while no fabrics remain and no pairing session is active. A new fabric stops recovery. Removing one of several fabrics does not trigger this flow. Logs report removal, remaining fabric count and reopening/errors.
 
 Deleting an accessory while the ESP is offline cannot deliver RemoveFabric. The ESP keeps its pairing until the physical five-press factory reset; firmware cannot infer a controller database deletion.
