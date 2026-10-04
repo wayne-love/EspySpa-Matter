@@ -27,7 +27,7 @@ Initial flashing uses USB. Normal control and diagnosis use Thread. You need an 
 
 ## Factory reset
 
-Press and release **BOOT (GPIO9) five times within five seconds** while the firmware is running. The **fifth release triggers the reset**; no sixth press is required. When the LED flashes purple, leave BOOT released while the connector clears its pairings and Thread credentials and reboots ready to pair. Firmware and spa controller settings are retained. See [reset details](docs/STATUS_LED.md#factory-reset).
+Press and release **GP button (GPIO21) five times within five seconds** while the firmware is running. The **fifth release triggers the reset**; no sixth press is required. When the LED flashes purple, leave GP button released while the connector clears its pairings and Thread credentials and reboots ready to pair. Firmware and spa controller settings are retained. See [reset details](docs/STATUS_LED.md#factory-reset).
 
 ## Quality gates
 
