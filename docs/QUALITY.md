@@ -19,7 +19,8 @@ Firmware compilation uses a persistent **ccache**, bounded to 500 MB per saved c
 | Firmware | Actual pinned ESP-Matter/ESP-IDF compilation for ESP32-C6 | Compilation does not establish controller interoperability |
 | Build package | Generated target/Thread/Wi-Fi/USB console/project config, required images and metadata, nonempty files, safe paths, no flash-image overlap, application offset and fit in both OTA slots | Uses this repository's partition layout |
 | OTA headroom | At least 64 KiB free in each OTA application slot | An explicit growth reserve, not a guarantee for future features |
-| Startup guard | Control endpoint IDs 1–8 and aggregator 9 remain stable | Runs on the ESP at startup, not in host CI |
+| Control policy | First-valid-RF configuration freezes per boot, sparse stable pump IDs, native mode/slider mapping, staged blower writes/failures and last-fabric recovery | Host policy tests; SDK callbacks and hardware still require firmware/physical validation |
+| Startup guard | Permanent controls keep 1/2/8, reserved pump identities 3–7 and aggregator 9 remain stable | Reservations are removed before Matter starts; installed pumps are enabled after RF |
 
 Documentation-only PR runs produce no firmware artifacts. Artifacts are uploaded only after the host checks and firmware/package checks pass. A separate **espyspa-matter-quality-esp32c6** artifact contains commit SHA, image SHA-256 hashes, image sizes/offsets, checked configuration and remaining OTA space. Keep it with the flashing images and matching debug ELF. These hashes identify an artifact; they are not firmware signing.
 
@@ -58,7 +59,7 @@ See [GitHub protected branches](https://docs.github.com/en/repositories/configur
 
 Record firmware commit, spa model/firmware, controller and phone OS version, result and a diagnostic snapshot. Controller names can be cached; verify naming on a newly added device as well as an existing pairing. Do not erase an in-service device merely to perform a naming test.
 
-Host CI currently does not exercise the FreeRTOS queue, the Matter callbacks, diagnostic JSON construction or Thread reconnection. These remain hardware acceptance checks. Extracting those policies behind host-testable interfaces is a subsequent quality milestone if changes begin touching them frequently.
+Host CI currently does not exercise the FreeRTOS queue, the Matter callbacks, diagnostic JSON construction or Thread reconnection. These remain hardware acceptance checks. Control mapping, per-boot configuration, blower stage sequencing and commissioning recovery policy are exercised in host tests; their SDK/FreeRTOS integration still needs firmware and hardware acceptance.
 
 ## Run host checks locally (optional)
 

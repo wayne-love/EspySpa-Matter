@@ -10,3 +10,4 @@ __pycache__/
 .host-led-tests
 .host-reset-tests
 .ccache/
+.host-control-tests

@@ -38,10 +38,14 @@ esp_err_t diagnostic(httpd_req_t *req) {
     cJSON_AddBoolToObject(state, "heating", s.state.heating);
     cJSON_AddBoolToObject(state, "sleeping", s.state.sleeping);
     cJSON_AddNumberToObject(state, "blower_mode", s.state.blower);
+    cJSON_AddNumberToObject(state, "variable_level", s.state.variable_level);
     auto pumps = cJSON_AddArrayToObject(state, "pumps");
     for (int p = 0; p < 5; ++p) {
         auto item = cJSON_CreateObject(); cJSON_AddItemToArray(pumps, item);
         cJSON_AddNumberToObject(item, "number", p + 1);
+        cJSON_AddBoolToObject(item, "installed", s.state.pump_installed[p]);
+        cJSON_AddBoolToObject(item, "unknown_modes", s.state.pump_unknown_modes[p]);
+        cJSON_AddNumberToObject(item, "speed_type", s.state.pump_speed_type[p]);
         cJSON_AddNumberToObject(item, "mode", s.state.pumps[p]);
         cJSON_AddNumberToObject(item, "supported_modes_mask", s.state.pump_modes[p]);
         cJSON_AddBoolToObject(item, "ready", s.state.pump_ready[p]);

@@ -17,3 +17,7 @@ ASAN_OPTIONS=detect_leaks=0 ./.host-reset-tests
 "$compiler" -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g \
     -Imain tests/alternate_boot_gesture_test.cpp -o .host-alt-boot-tests
 ASAN_OPTIONS=detect_leaks=0 ./.host-alt-boot-tests
+
+"$compiler" -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+    -Imain -Icomponents/spa_protocol/include components/spa_protocol/spa_protocol.cpp tests/control_policy_test.cpp -o .host-control-tests
+ASAN_OPTIONS=detect_leaks=0 ./.host-control-tests

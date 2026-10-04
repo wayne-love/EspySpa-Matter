@@ -26,7 +26,7 @@ The LED uses colour for phase and repeated flash groups for status. A flash last
 | Purple | Three flashes | Factory reset confirmed; clearing pairing configuration and rebooting |
 | Green | Solid | Stored Matter fabric, Thread attached and fresh spa state |
 
-Commissioning activity/fail-safe expiry takes priority over operational status. A closed pairing window does not automatically reopen. The separate BOOT-button handler requests factory reset and overrides the indicator with purple confirmation.
+Commissioning activity/fail-safe expiry takes priority over operational status. After confirmed removal of the final fabric, a closed pairing window reopens automatically until pairing succeeds. Other closed windows keep the SDK's existing behaviour. The separate BOOT-button handler requests factory reset and overrides the indicator with purple confirmation.
 
 A stored fabric is not proof that the controller completed pairing: an aborted pairing can therefore show yellow or green. The indicator reports device state, not controller visibility. Thread attachment means child/router/leader role; it does not establish that every controller or computer has a working route. Solid green also does not certify safe spa operation or command success.
 

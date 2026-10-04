@@ -9,11 +9,11 @@ Initial ESP32-C6 rewrite of [ESPySpa](https://github.com/wayne-love/ESPySpa): Sp
 | 0 | Matter root | Commissioning and standard network diagnostics |
 | 1 | Thermostat | Water temperature; heating setpoint, 5–41 °C in 0.2 °C steps |
 | 2 | Light | On/off using fresh-state guarded W14 toggle |
-| 3–7 | Pump 1–5 switches | On chooses highest supported manual mode; off chooses mode 0 |
-| 8 | Blower switch | On selects Variable (S28:0); off S28:2 |
+| 3–7 | Installed pump controls | Created after the first valid RF; Fan speed slider plus advertised native modes |
+| 8 | Blower control | Fan speed slider plus Off, Ramp and Variable levels 1–5 |
 | 9 | Matter aggregator | Groups the named UART-backed spa controls |
 
-The firmware supplies eSpa Temperature, eSpa Light, eSpa Pump 1–5 and eSpa Blower as individual bridged control names. Controllers may retain previously assigned names. Rename the switches in your Matter controller if needed. All five pump endpoints are stable across boots, including uninstalled pumps: unsupported controls fail instead of sending commands. Pump capability/readiness comes from RG. These switches control pump modes, not electrical supply or physical running state; Auto (4) is reported as on. A subsequent on request selects manual operation. Off does not preserve/restore Auto.
+The firmware supplies eSpa Temperature, eSpa Light, installed eSpa Pump 1–5 and eSpa Blower as individual bridged control names. Temperature, light and blower are permanent. Pump presence and capabilities are established once from the first valid RF of **each boot**, kept only in RAM, and fixed until reboot. Later reads update state/readiness without changing the model. Installed pump IDs stay 3–7 with gaps for absent pumps. See [native controls and acceptance](docs/CONTROLS.md) for exact mode mappings, blower sequencing, production speed ordering and controller UI validation.
 
 The thermostat stays in Heat mode: the original protocol does not establish a safe global heating-off command. Attempts to select Off/Cool/Auto are rejected. The spa retains its own heating, filtration, timers and safety interlocks. Some controllers may display modes or setpoints they cannot use; controller interoperability is part of hardware acceptance testing.
 

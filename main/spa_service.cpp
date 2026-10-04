@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "control_pipeline.hpp"
 #include "driver/uart.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -58,22 +59,28 @@ void worker(void *) {
         poll();
         spa::Request r;
         if (xQueueReceive(requests, &r, pdMS_TO_TICKS(5000)) != pdTRUE) continue;
-        // A fresh read is essential for W14 (toggle), also validates current capabilities.
-        bool ok = poll(); std::string error = "fresh poll failed"; spa::Command cmd;
-        if (ok) ok = spa::command(snapshot().state, r, cmd, error);
-        if (ok && !cmd.wire.empty()) {
+        // Each stage has its own fresh RF and exact readback. No automatic retries.
+        auto execute = [&](spa::Request stage, std::string &error) {
+            if (!poll()) { error = "fresh poll failed"; return false; }
+            spa::Command cmd;
+            if (!spa::command(snapshot().state, stage, cmd, error)) return false;
+            if (cmd.wire.empty()) return true;
             auto rx = exchange(cmd.wire);
             bool ack = trimmed(rx) == cmd.acknowledgement;
             record(cmd.wire, rx, ack ? "acknowledged; awaiting readback" : "acknowledgement mismatch; awaiting readback");
-            // Never retry a toggle; even a lost ACK can mean the command took effect.
-            ok = poll() && spa::matches(snapshot().state, r);
-            if (!ok) error = "controller readback did not confirm request";
-        }
+            // A lost ACK is ambiguous; always check the real state and never repeat the write.
+            if (!poll() || !spa::matches(snapshot().state, stage)) {
+                error = "controller readback did not confirm request"; return false;
+            }
+            return true;
+        };
+        std::string error;
+        bool ok = controls::execute_request(r, execute, [] { return snapshot().state; }, error);
         xSemaphoreTake(mutex, portMAX_DELAY);
         if (ok) ++current.commands_ok;
         else { ++current.commands_failed; current.error = error; }
         xSemaphoreGive(mutex);
-        record("request:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value), "", ok ? "confirmed" : error);
+        record("request:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", ok ? "confirmed" : error);
         matter_publish();
     }
 }
@@ -93,7 +100,7 @@ Snapshot snapshot() {
 esp_err_t submit(spa::Request r) {
     auto s = snapshot();
     auto rejected = [&](esp_err_t result, const std::string &why) {
-        record("rejected:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value), "", why);
+        record("rejected:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", why);
         return result;
     };
     if (!s.valid || now_ms() - s.last_valid_ms > 15000) return rejected(ESP_ERR_INVALID_STATE, "spa state stale or unavailable");
@@ -101,7 +108,7 @@ esp_err_t submit(spa::Request r) {
     if (!spa::command(s.state, r, c, error)) return rejected(ESP_ERR_INVALID_ARG, error);
     // Queue all requests, including apparent no-ops: an earlier queued write may change state.
     if (xQueueSend(requests, &r, 0) != pdTRUE) return rejected(ESP_ERR_NO_MEM, "command queue full");
-    record("queued:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value), "", "accepted; not yet confirmed");
+    record("queued:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", "accepted; not yet confirmed");
     return ESP_OK;
 }
 void spa_start() {
