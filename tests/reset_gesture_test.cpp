@@ -33,5 +33,28 @@ int main() {
     CHECK(!long_press.sample(true, 100)); CHECK(!long_press.sample(true, 130));
     CHECK(!long_press.sample(true, 5100)); CHECK(!long_press.sample(true, 5131));
     CHECK(!long_press.sample(false, 5200)); CHECK(!long_press.sample(false, 5230)); CHECK(long_press.count() == 0);
+    // Edge timestamps survive a delayed worker: no intermediate polling samples.
+    ResetGesture queued; arm(queued);
+    for (unsigned i = 0; i < 5; ++i) {
+        CHECK(!queued.sample(true, 100 + i * 200));
+        CHECK(!queued.sample(false, 160 + i * 200));
+    }
+    CHECK(queued.sample(false, 1000)); // Fifth release has settled.
+    CHECK(!queued.sample(false, 1100));
+    ResetGesture queued_bounce; arm(queued_bounce);
+    for (unsigned i = 0; i < 5; ++i) {
+        const auto t = 100 + i * 200;
+        CHECK(!queued_bounce.sample(true, t));
+        CHECK(!queued_bounce.sample(false, t + 5));
+        CHECK(!queued_bounce.sample(true, t + 10));
+        CHECK(!queued_bounce.sample(false, t + 15));
+    }
+    CHECK(!queued_bounce.sample(false, 1000)); CHECK(queued_bounce.count() == 0);
+    ResetGesture delayed_finish; arm(delayed_finish);
+    for (unsigned i = 0; i < 5; ++i) {
+        CHECK(!delayed_finish.sample(true, 100 + i * 200));
+        CHECK(!delayed_finish.sample(false, 160 + i * 200));
+    }
+    CHECK(delayed_finish.sample(false, 10000)); // Edge times, not processing delay, govern the window.
     std::cout << "Five-press reset debounce, release, startup hold, timeout and boundary checks passed\n";
 }

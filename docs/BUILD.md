@@ -34,7 +34,7 @@ Follow the [Matter commissioning guide](COMMISSIONING.md) to join a Thread netwo
 
 Find the device's routable IPv6 address in the border router/Thread integration. Open `http://[DEVICE_IPV6]:8080/`. Some routers/controllers only expose link-local or mesh-local addresses; a routable OMR address and host IPv6 route are needed. See DIAGNOSTICS.md.
 
-A physical factory reset is available: press and release BOOT on GPIO9 five times within five seconds during normal operation. The connector clears its pairing/Thread configuration and reboots, retaining firmware. See [STATUS_LED.md](STATUS_LED.md#factory-reset). No network reset API is exposed. Do not factory-reset as a routine update.
+A physical factory reset is available: press and release GP button on GPIO21 five times within five seconds during normal operation. The connector clears its pairing/Thread configuration and reboots, retaining firmware. See [STATUS_LED.md](STATUS_LED.md#factory-reset). No network reset API is exposed. Do not factory-reset as a routine update.
 
 ## Download contents
 

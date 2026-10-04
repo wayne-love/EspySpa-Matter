@@ -5,18 +5,23 @@ class ResetGesture {
 public:
     bool sample(bool pressed, uint64_t now_ms) {
         if (triggered_) return false;
+        // Settle the preceding edge BEFORE replacing it. Timestamped GPIO edges
+        // can be drained after a task delay without losing whole valid clicks.
+        if (now_ms - changed_ms_ >= 30 && stable_ != candidate_) {
+            const auto settled_ms = changed_ms_ + 30;
+            if (count_ && settled_ms - first_press_ms_ > 5000) count_ = 0;
+            stable_ = candidate_;
+            if (!armed_) { if (!stable_) armed_ = true; }
+            else if (stable_) {
+                if (!count_) first_press_ms_ = settled_ms;
+                ++count_;
+            } else if (count_ == 5 && settled_ms - first_press_ms_ <= 5000) {
+                triggered_ = true;
+                return true; // Fifth release: require a completed button click.
+            }
+        }
         if (count_ && now_ms - first_press_ms_ > 5000) count_ = 0;
         if (pressed != candidate_) { candidate_ = pressed; changed_ms_ = now_ms; }
-        if (now_ms - changed_ms_ < 30 || stable_ == candidate_) return false;
-        stable_ = candidate_;
-        if (!armed_) { if (!stable_) armed_ = true; return false; }
-        if (stable_) {
-            if (!count_) first_press_ms_ = now_ms;
-            ++count_;
-        } else if (count_ == 5 && now_ms - first_press_ms_ <= 5000) {
-            triggered_ = true;
-            return true; // Fifth release: don't reboot with the strapping pin held low.
-        }
         return false;
     }
     unsigned count() const { return count_; }

@@ -20,9 +20,9 @@ menu "EspySpa hardware and diagnostics"
         default 16
 
     config SPA_RESET_GPIO
-        int "Active-low BOOT button GPIO for factory reset / alternate firmware"
+        int "Active-low GP button GPIO for factory reset / alternate firmware"
         range 0 30
-        default 9
+        default 21
 
     config SPA_RELEASE_MANIFEST_URL
         string "Release firmware manifest URL"

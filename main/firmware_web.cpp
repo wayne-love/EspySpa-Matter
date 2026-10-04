@@ -19,7 +19,7 @@ section{background:#162633;padding:1rem;margin:1rem 0;border-radius:.5rem}
 .locked{color:#ffb0a8;font-weight:700}
 </style>
 <h1>EspySpa firmware</h1>
-<p>Firmware changes require a recent physical BOOT-button press. Press and release BOOT once, then use the controls below within 60 seconds.</p>
+<p>Firmware changes require a recent physical GP-button press. Press and release GP button once, then use the controls below within 60 seconds.</p>
 <section>
 <p id="banner"></p>
 <div class="grid">
@@ -54,7 +54,7 @@ async function refresh(){
     el('state').textContent=f.update_state+(f.update_target_version?' → '+f.update_target_version:'')+(f.update_error?' — '+f.update_error:'');
     el('banner').textContent=f.image_channel==='development'?'⚠ Development firmware':'Release firmware';
     el('banner').className=f.image_channel==='development'?'warn':'';
-    el('unlock').textContent=f.management_unlocked?'Unlocked':'Locked — press BOOT once';
+    el('unlock').textContent=f.management_unlocked?'Unlocked':'Locked — press GP button once';
     el('unlock').className=f.management_unlocked?'':'locked';
     const disabled=!f.management_unlocked||f.busy;
     el('update').disabled=disabled;
@@ -74,7 +74,7 @@ bool require_unlock(httpd_req_t *req) {
     if (firmware_management_is_unlocked()) return true;
     httpd_resp_set_status(req, "403 Forbidden");
     httpd_resp_set_type(req, "text/plain");
-    httpd_resp_sendstr(req, "Press and release the physical BOOT button, then try again within 60 seconds.");
+    httpd_resp_sendstr(req, "Press and release the physical GP button, then try again within 60 seconds.");
     return false;
 }
 
