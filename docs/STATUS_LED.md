@@ -48,6 +48,8 @@ With the device running normally, **press and release BOOT five times within fiv
 
 The button is GPIO9, active low, with an internal pull-up. Each press and release must be stable for at least 30 ms; the five-second window runs from the first debounced press to the fifth debounced release. A held button is one press, and a button already held when the handler starts is ignored until released. An incomplete or expired sequence does nothing.
 
+Watch the native USB serial log to check recognition. The handler logs `BOOT gesture handler ready on GPIO9`, each detected input edge (`BOOT input pressed` / `BOOT input released` with its timestamp), and recognised presses as `BOOT factory-reset press 1/5` through `5/5`. Raw input edges can include contact bounce; only debounced presses count. A timed-out sequence logs `BOOT factory-reset sequence expired; start again`. On the fifth release, expect `Five BOOT presses confirmed; factory reset requested`, then `Clearing Matter/Thread configuration and restarting` after the purple confirmation. If no input-edge messages appear, verify that you are pressing **BOOT**, not **EN**, and that the configured reset GPIO matches the board's button.
+
 The purple confirmation lasts approximately 1.5 seconds. The reset removes saved Matter fabrics, Thread credentials and ESP-Matter attribute settings. Application images, bootloader and factory identity data are retained. There are currently no separate application configuration namespaces to erase.
 
 After reboot, expect red single flashes when the initial commissioning window opens. Pair as a new accessory using the development code **34970112332**. Remove any stale eSpa entry left in a controller before adding it again. Reset applies only to the connector: it does not reset the spa controller or send spa commands. There is no network reset endpoint.
@@ -56,6 +58,8 @@ After reboot, expect red single flashes when the initial commissioning window op
 
 GPIO9 is also the ESP32-C6 boot strap pin. If BOOT is pressed again during the purple confirmation period, the firmware waits for the button to be released before rebooting so it does not accidentally enter ROM download mode. This is a safety guard, not a sixth step in the reset sequence.
 
-EN remains a normal hardware reboot. Holding BOOT while powering up or pressing EN selects the ROM download mode; use the five-press gesture only after normal firmware startup. If factory reset cannot be scheduled, the error is logged and the LED returns to normal status; reboot before trying the gesture again. LED-driver failure does not disable the physical reset gesture.
+The handler captures timestamped GPIO edges in a bounded interrupt queue, preserving clicks when its task is delayed. Debouncing and gesture processing run in the task; the interrupt handler never logs or resets. Queue overflow discards the sequence and logs a warning; release BOOT and retry. The GPIO interrupt is removed once a reboot/reset is accepted.
+
+EN remains a normal hardware reboot. Holding BOOT while powering up or pressing EN selects the ROM download mode; use the five-press gesture only after normal firmware startup. If factory reset cannot be scheduled, the error is logged, the LED returns to normal status and the handler rearms so you can retry. A failed alternate-image request also leaves the button handler running. LED-driver failure does not disable the physical reset gesture.
 
 Hardware acceptance: four presses do nothing; the fifth release resets and removes fabrics/Thread state; no sixth press is required; slow or bouncing presses do not reset; holding BOOT during normal operation does not reset; after reset the development code commissions successfully; a normal reboot retains pairing.
