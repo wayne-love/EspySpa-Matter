@@ -10,3 +10,5 @@ Run tests/run.sh after protocol changes. Firmware compilation and physical commi
 Respect the user's 50% credit limit: usage/quota is unavailable in this environment, so do bounded milestones, avoid broad explorations and multiple-agent work; do not claim to enforce a percentage.
 
 For incremental changes, follow docs/QUALITY.md. Add failing regression cases for protocol bugs; preserve endpoint IDs and readback semantics. Artifacts must pass quality-gate before use. Hardware acceptance is separate from host CI.
+
+Release-only build policy: PRs run host tests, lint and the quality gate, but NEVER compile firmware. Compile/package only on an explicit manual development-release workflow dispatch or a `v*` production tag. Do not enable firmware builds on PRs or ordinary pushes.
