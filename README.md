@@ -2,7 +2,7 @@
 
 Initial ESP32-C6 rewrite of [ESPySpa](https://github.com/wayne-love/ESPySpa): SpaNET UART controls exposed through **Matter over Thread**, with read-only network diagnostics. ESP-IDF / ESP-Matter, not the old Arduino/MQTT stack.
 
-**Development firmware:** protocol tested on the supplied SV3 snapshot; physical spa operation and Matter commissioning still require hardware validation. See the Actions run for firmware compile status. No certification claim.
+**Development firmware:** protocol tested on the supplied SV3 snapshot; physical spa operation and Matter commissioning still require hardware validation. See the latest explicitly triggered development or tagged production Actions run for firmware compile status. No certification claim.
 
 | Endpoint | Initial function | Behaviour |
 |---|---|---|

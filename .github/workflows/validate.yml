@@ -1,7 +1,6 @@
 name: Validate ESP32-C6 migration
 on:
   push:
-    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -27,8 +26,10 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if [ "$EVENT" = pull_request ]; then
-            python3 scripts/ci_policy.py --base "$BASE_SHA" --head HEAD >> "$GITHUB_OUTPUT"
+            # PRs run host quality/protocol checks but never compile firmware.
+            echo 'firmware=false' >> "$GITHUB_OUTPUT"
           else
+            # A version is being released: manual development or v* production tag.
             echo 'firmware=true' >> "$GITHUB_OUTPUT"
           fi
   quality:
@@ -165,7 +166,7 @@ jobs:
           if-no-files-found: error
   publish-development:
     needs: [firmware, quality-gate]
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.quality-gate.result == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && needs.quality-gate.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -193,7 +194,7 @@ jobs:
 
           if gh release view development >/dev/null 2>&1; then
             gh release edit development --prerelease --title "Development firmware" \
-              --notes "Latest successful build from main. This image may contain unfinished changes."
+              --notes "Explicitly published development build. This image may contain unfinished changes."
           else
             gh release create development --prerelease --title "Development firmware" \
               --notes "Latest successful build from main. This image may contain unfinished changes."
