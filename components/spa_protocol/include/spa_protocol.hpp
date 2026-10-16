@@ -6,6 +6,9 @@
 namespace spa {
 struct State {
     int water_tenths = 0, setpoint_tenths = 0;
+    // SpaNET RF R2 readings. Optional: malformed/missing telemetry must not disable spa controls.
+    bool mains_electrical_valid = false;
+    int mains_current_tenths = 0, mains_voltage_volts = 0;
     bool light = false, heating = false, sleeping = false;
     std::array<int, 5> pumps{};
     std::array<uint8_t, 5> pump_modes{};
