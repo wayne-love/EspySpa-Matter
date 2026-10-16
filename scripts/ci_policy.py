@@ -1,4 +1,4 @@
-"""Conservative firmware selection and aggregate gate policy for GitHub Actions."""
+"""Legacy path classifier and release-only aggregate gate policy for GitHub Actions."""
 import argparse
 import os
 from pathlib import PurePosixPath
@@ -37,7 +37,7 @@ def main():
         )]
         if not gate_passes(*values):
             parser.exit(1, f"Quality gate failed: {values}\n")
-        print("Quality gate passed (firmware built or explicitly documentation-only).")
+        print("Quality gate passed (release firmware built or PR firmware intentionally skipped).")
     else:
         if not args.base:
             parser.error("--base is required for change classification")
