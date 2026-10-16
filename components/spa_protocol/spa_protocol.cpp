@@ -42,6 +42,14 @@ bool parse(std::string_view data, State &out, std::string &error) {
         return r != regs.end() && index < r->second.size() && number(r->second[index], value) && value >= min && value <= max;
     };
     State s; int v;
+    // R2+1 is mains current in 0.1 A, R2+2 is mains voltage in V.
+    // Reject invalid optional diagnostics independently, not the entire RF snapshot.
+    int amps_tenths = 0, volts = 0;
+    if (get("R2", 1, amps_tenths, 0, 1000) && get("R2", 2, volts, 0, 500)) {
+        s.mains_electrical_valid = true;
+        s.mains_current_tenths = amps_tenths;
+        s.mains_voltage_volts = volts;
+    }
     if (!get("R5", 15, s.water_tenths, 0, 600) || !get("R6", 8, s.setpoint_tenths, 50, 410)) return fail("invalid temperature fields");
     if (!get("R5", 14, v, 0, 1)) return fail("invalid light field");
     s.light = v;
