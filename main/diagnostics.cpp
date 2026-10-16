@@ -30,7 +30,8 @@ void log_thread_addresses() {
             if (count == addresses.size()) { truncated = true; break; }
             auto &entry = addresses[count++];
             otIp6AddressToString(&a->mAddress, entry.text, sizeof(entry.text));
-            const bool local = otIp6IsAddressLinkLocal(&a->mAddress);
+            const bool local = a->mAddress.mFields.m8[0] == 0xfe &&
+                               (a->mAddress.mFields.m8[1] & 0xc0) == 0x80; // fe80::/10
             const bool mesh = prefix && std::memcmp(a->mAddress.mFields.m8, prefix->m8, sizeof(prefix->m8)) == 0;
             entry.scope = local ? "link-local" : (mesh || a->mRloc ? "Thread mesh-local" : "routable candidate");
             entry.usable = role >= OT_DEVICE_ROLE_CHILD && !local && !mesh && !a->mRloc && a->mValid && a->mPreferred;
