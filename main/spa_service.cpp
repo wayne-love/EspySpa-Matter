@@ -1,5 +1,7 @@
 #include "app.hpp"
 #include "control_pipeline.hpp"
+#include "serial_log.hpp"
+#include "esp_log.h"
 #include "driver/uart.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -13,6 +15,7 @@ SemaphoreHandle_t mutex;
 QueueHandle_t requests;
 Snapshot current;
 constexpr uart_port_t port = UART_NUM_1;
+const char *TAG = "spa_state";
 void record(const std::string &tx, const std::string &rx, const std::string &result) {
     xSemaphoreTake(mutex, portMAX_DELAY);
     if (current.transactions.size() == 16) current.transactions.erase(current.transactions.begin());
@@ -47,6 +50,22 @@ bool poll() {
     else ++current.polls_failed;
     xSemaphoreGive(mutex);
     record("RF", raw, ok ? "valid snapshot" : error);
+    // UART worker owns these caches; never print placeholder state as live data.
+    static bool seen = false, previously_valid = false;
+    static std::string last_report;
+    static spa_log::Periodic heartbeat;
+    const bool periodic = heartbeat.due(now_ms());
+    if (ok) {
+        const auto report = spa_log::state(state);
+        if (!seen || !previously_valid || report != last_report || periodic)
+            ESP_LOGI(TAG, "RF readback valid: %s", report.c_str());
+        last_report = report; seen = true;
+    } else if (previously_valid || !seen || periodic) {
+        // Error text is bounded and contains no network credentials.
+        ESP_LOGW(TAG, "Spa unavailable: RF read failed (%s); controls unreachable, commands rejected", error.c_str());
+        seen = true;
+    }
+    previously_valid = ok;
     matter_publish(); return ok;
 }
 std::string trimmed(std::string r) {
@@ -59,14 +78,21 @@ void worker(void *) {
         poll();
         spa::Request r;
         if (xQueueReceive(requests, &r, pdMS_TO_TICKS(5000)) != pdTRUE) continue;
+        const auto description = spa_log::request(r);
+        ESP_LOGI("spa_command", "Executing %s", description.c_str());
         // Each stage has its own fresh RF and exact readback. No automatic retries.
         auto execute = [&](spa::Request stage, std::string &error) {
             if (!poll()) { error = "fresh poll failed"; return false; }
             spa::Command cmd;
             if (!spa::command(snapshot().state, stage, cmd, error)) return false;
-            if (cmd.wire.empty()) return true;
+            if (cmd.wire.empty()) {
+                ESP_LOGI("spa_command", "%s already matches fresh RF; no write", spa_log::request(stage).c_str());
+                return true;
+            }
+            ESP_LOGI("spa_command", "%s: sending %s", spa_log::request(stage).c_str(), cmd.wire.c_str());
             auto rx = exchange(cmd.wire);
             bool ack = trimmed(rx) == cmd.acknowledgement;
+            if (!ack) ESP_LOGW("spa_command", "%s: ACK mismatch; checking RF, write will not be retried", spa_log::request(stage).c_str());
             record(cmd.wire, rx, ack ? "acknowledged; awaiting readback" : "acknowledgement mismatch; awaiting readback");
             // A lost ACK is ambiguous; always check the real state and never repeat the write.
             if (!poll() || !spa::matches(snapshot().state, stage)) {
@@ -80,6 +106,8 @@ void worker(void *) {
         if (ok) ++current.commands_ok;
         else { ++current.commands_failed; current.error = error; }
         xSemaphoreGive(mutex);
+        if (ok) ESP_LOGI("spa_command", "Confirmed by RF: %s", description.c_str());
+        else ESP_LOGW("spa_command", "Failed %s: %s", description.c_str(), error.c_str());
         record("request:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", ok ? "confirmed" : error);
         matter_publish();
     }
@@ -100,6 +128,7 @@ Snapshot snapshot() {
 esp_err_t submit(spa::Request r) {
     auto s = snapshot();
     auto rejected = [&](esp_err_t result, const std::string &why) {
+        ESP_LOGW("spa_command", "Rejected %s: %s", spa_log::request(r).c_str(), why.c_str());
         record("rejected:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", why);
         return result;
     };
@@ -109,6 +138,7 @@ esp_err_t submit(spa::Request r) {
     // Queue all requests, including apparent no-ops: an earlier queued write may change state.
     if (xQueueSend(requests, &r, 0) != pdTRUE) return rejected(ESP_ERR_NO_MEM, "command queue full");
     record("queued:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", "accepted; not yet confirmed");
+    ESP_LOGI("spa_command", "Queued %s; awaiting spa readback", spa_log::request(r).c_str());
     return ESP_OK;
 }
 void spa_start() {

@@ -1,6 +1,7 @@
 #include "app.hpp"
 #include <esp_matter.h>
 #include "control_policy.hpp"
+#include "serial_log.hpp"
 #include <app/clusters/mode-select-server/supported-modes-manager.h>
 #include <app/CommandHandler.h>
 #include <app/data-model/Decode.h>
@@ -209,6 +210,7 @@ void publish(intptr_t) {
     finalise_controls(s);
     refresh_identity(0);
     bool fresh = s.valid && now_ms() - s.last_valid_ms <= 15000;
+    static uint16_t reachability_seen = 0, reachable_mask = 0;
     for (uint16_t id : {thermostat_id, light_id, pump_ids[0], pump_ids[1], pump_ids[2], pump_ids[3], pump_ids[4], blower_id})
         if (endpoint::get(id)) {
             bool reachable = fresh;
@@ -216,6 +218,12 @@ void publish(intptr_t) {
             for (size_t p = 0; p < pump_ids.size(); ++p) if (id == pump_ids[p])
                 reachable = reachable && !topology.unknown(p) && s.state.pump_installed[p] && !s.state.pump_unknown_modes[p] && s.state.pumps[p] >= 0 && s.state.pumps[p] <= 4 && (topology.modes(p) & (1u << s.state.pumps[p]));
             update(id, BridgedDeviceBasicInformation::Id, BridgedDeviceBasicInformation::Attributes::Reachable::Id, esp_matter_bool(reachable));
+            const uint16_t bit = 1u << id;
+            if (!(reachability_seen & bit) || bool(reachable_mask & bit) != reachable)
+                ESP_LOGI(TAG, "%s (endpoint 0x%04x): Reachable=%s%s", spa_log::endpoint_name(id), unsigned(id),
+                         reachable ? "true" : "false", fresh ? "" : "; spa RF unavailable/stale");
+            reachability_seen |= bit;
+            if (reachable) reachable_mask |= bit; else reachable_mask &= ~bit;
         }
     update(thermostat_id, Thermostat::Id, Thermostat::Attributes::LocalTemperature::Id,
            fresh ? esp_matter_nullable_int16(s.state.water_tenths * 10) : esp_matter_nullable_int16(nullable<int16_t>()));
@@ -301,6 +309,9 @@ void matter_publish() {
     if (err != CHIP_NO_ERROR) publish_pending = false;
 }
 void matter_start() {
+    esp_log_level_set("esp_matter_attribute", ESP_LOG_WARN);
+    ESP_LOGI(TAG, "Endpoint map: 1 Thermostat, 2 Lights, 3-7 installed Pumps 1-5, 8 Blower, 9 Spa bridge");
+    ESP_LOGI(TAG, "Numeric attribute INFO traces suppressed; named spa state/commands and SDK warnings/errors retained");
     node::config_t cfg;
     std::strcpy(cfg.root_node.basic_information.node_label, "eSpa");
     auto node = node::create(&cfg, changed, identify); configASSERT(node); matter_node = node;

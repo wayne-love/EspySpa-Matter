@@ -1,13 +1,70 @@
 #include "app.hpp"
 #include "esp_http_server.h"
 #include "esp_system.h"
+#include "esp_log.h"
 #include "esp_app_desc.h"
 #include "esp_openthread.h"
 #include "esp_openthread_lock.h"
 #include "openthread/thread.h"
 #include "openthread/ip6.h"
 #include "cJSON.h"
+#include "freertos/task.h"
+#include <array>
+#include <cstring>
 namespace {
+void log_thread_addresses() {
+    struct Address { char text[OT_IP6_ADDRESS_STRING_SIZE]{}; const char *scope = ""; bool usable = false; };
+    std::array<Address, 16> addresses{};
+    size_t count = 0;
+    bool truncated = false, available = false;
+    otDeviceRole role = OT_DEVICE_ROLE_DISABLED;
+    if (!esp_openthread_lock_acquire(pdMS_TO_TICKS(100))) {
+        ESP_LOGW("spa_network", "IPv6 minute report: Thread lock busy; retry next minute");
+        return;
+    }
+    auto ot = esp_openthread_get_instance();
+    if (ot) {
+        available = true; role = otThreadGetDeviceRole(ot);
+        const auto prefix = otThreadGetMeshLocalPrefix(ot);
+        for (auto a = otIp6GetUnicastAddresses(ot); a; a = a->mNext) {
+            if (count == addresses.size()) { truncated = true; break; }
+            auto &entry = addresses[count++];
+            otIp6AddressToString(&a->mAddress, entry.text, sizeof(entry.text));
+            const bool local = otIp6IsAddressLinkLocal(&a->mAddress);
+            const bool mesh = prefix && std::memcmp(a->mAddress.mFields.m8, prefix->m8, sizeof(prefix->m8)) == 0;
+            entry.scope = local ? "link-local" : (mesh || a->mRloc ? "Thread mesh-local" : "routable candidate");
+            entry.usable = role >= OT_DEVICE_ROLE_CHILD && !local && !mesh && !a->mRloc && a->mValid && a->mPreferred;
+        }
+    }
+    esp_openthread_lock_release(); // Never hold the Thread lock during serial output.
+    const char *role_name = "unknown";
+    switch (role) {
+    case OT_DEVICE_ROLE_DISABLED: role_name = "disabled"; break;
+    case OT_DEVICE_ROLE_DETACHED: role_name = "detached"; break;
+    case OT_DEVICE_ROLE_CHILD: role_name = "child"; break;
+    case OT_DEVICE_ROLE_ROUTER: role_name = "router"; break;
+    case OT_DEVICE_ROLE_LEADER: role_name = "leader"; break;
+    }
+    ESP_LOGI("spa_network", "IPv6 minute report: Thread=%s, addresses=%u%s", available ? role_name : "not initialized",
+             unsigned(count), truncated ? " (list truncated)" : "");
+    bool has_url = false;
+    for (size_t i = 0; i < count; ++i) {
+        ESP_LOGI("spa_network", "IPv6: %s [%s]", addresses[i].text, addresses[i].scope);
+        if (addresses[i].usable) {
+            has_url = true;
+            ESP_LOGI("spa_network", "Diagnostics: http://[%s]:8080/ ; Firmware: http://[%s]:8081/ (requires border-router IPv6 route)",
+                     addresses[i].text, addresses[i].text);
+        }
+    }
+    if (!has_url) ESP_LOGI("spa_network", "No preferred routable IPv6 address available for web access");
+}
+void network_log_worker(void *) {
+    TickType_t last = xTaskGetTickCount();
+    for (;;) {
+        log_thread_addresses();
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(60000));
+    }
+}
 const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>EspySpa diagnostics</title>
 <style>body{font:16px system-ui;max-width:1000px;margin:2rem auto;padding:0 1rem;background:#101c26;color:#e6f1f5}input,button{font:inherit;padding:.6rem}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2b38;padding:1rem}label{display:block;margin:1rem 0}</style>
 <h1>EspySpa diagnostics</h1><p>Read-only interface. State is reported by the spa controller. Requests are confirmed by readback.</p>
@@ -95,4 +152,5 @@ void diagnostics_start() {
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &ui));
     httpd_uri_t api{}; api.uri = "/api/diagnostics"; api.method = HTTP_GET; api.handler = diagnostic;
     ESP_ERROR_CHECK(httpd_register_uri_handler(server, &api));
+    ESP_ERROR_CHECK(xTaskCreate(network_log_worker, "network_log", 4096, nullptr, 1, nullptr) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM);
 }
