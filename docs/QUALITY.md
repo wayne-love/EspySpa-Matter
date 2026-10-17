@@ -20,7 +20,7 @@ Firmware compilation uses a persistent **ccache**, bounded to 500 MB per saved c
 | Build package | Generated target/Thread/Wi-Fi/USB console/project config, required images and metadata, nonempty files, safe paths, no flash-image overlap, application offset and fit in both OTA slots | Uses this repository's partition layout |
 | OTA headroom | At least 64 KiB free in each OTA application slot | An explicit growth reserve, not a guarantee for future features |
 | Control policy | First-valid-RF configuration freezes per boot, sparse stable pump IDs, native mode/slider mapping, staged blower writes/failures and last-fabric recovery | Host policy tests; SDK callbacks and hardware still require firmware/physical validation |
-| Startup guard | Permanent controls keep 1/2/8, reserved pump identities 3–7 and aggregator 9 remain stable | Reservations are removed before Matter starts; installed pumps are enabled after RF |
+| Startup guard | Permanent native controls keep IDs 1/2/8 and reserved pump identities 3–7; retired aggregator 9 must not be exposed | Reservations are removed before Matter starts; installed pumps are enabled after RF; root PartsList reflects only present endpoints |
 
 All PR runs produce no firmware artifacts. Artifacts are uploaded only after the host checks and firmware/package checks pass. A separate **espyspa-matter-quality-esp32c6** artifact contains commit SHA, image SHA-256 hashes, image sizes/offsets, checked configuration and remaining OTA space. Keep it with the flashing images and matching debug ELF. These hashes identify an artifact; they are not firmware signing.
 
