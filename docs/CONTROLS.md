@@ -2,11 +2,11 @@
 
 ## Configuration for each boot
 
-Temperature (1), light (2), blower (8) and aggregator (9) exist at startup. Light and blower are assumed present. No pump accessory exists until the first valid complete RF response establishes installation and advertised modes from RG. The resulting pump configuration stays fixed for that boot. Later polls update native state and readiness only; failed reads cannot remove accessories or replace the configuration.
+Temperature (1), light (2) and blower (8) are native endpoints at startup; the old aggregator (9) is removed. Light and blower are assumed present. No pump endpoint exists until the first valid complete RF response establishes installation and advertised modes from RG. The resulting pump configuration stays fixed for that boot. Later polls update native state and readiness only; failed reads cannot remove accessories or replace the configuration.
 
 Configuration is kept only in RAM. It is not written to NVS or restored from storage. Every reboot waits for a new valid RF response before adding pumps. The SDK still retains Matter pairings and its existing endpoint-ID bookkeeping; these are separate from spa configuration.
 
-Pump identities are explicit: Pump 1→3, Pump 2→4, Pump 3→5, Pump 4→6, Pump 5→7. Gaps are allowed. For example, a spa with only pumps 1 and 4 exposes endpoints 3 and 6. Startup reserves these IDs internally and removes the empty reservations before Matter starts. It does not expose phantom pumps. Installed pumps are enabled on the CHIP task, and root/aggregator PartsList subscriptions are notified.
+Pump identities are explicit: Pump 1→3, Pump 2→4, Pump 3→5, Pump 4→6, Pump 5→7. Gaps are allowed. For example, a spa with only pumps 1 and 4 exposes endpoints 3 and 6. Startup reserves these IDs internally and removes the empty reservations before Matter starts. It does not expose phantom pumps. Installed pumps are enabled on the CHIP task, and root PartsList subscriptions are notified.
 
 ## Control inventory
 
@@ -16,7 +16,7 @@ Evidence is ESPySpa commit `ca206919b4df5886a09e8c91fe82d01df1f5488a`: `SpaInter
 |---|---|---|---|
 | Temperature | R5+15, R6+8 | W40:50..410, steps of 2 | Existing thermostat; Heat only |
 | Light | R5+14 | W14 toggle, fresh read first | Permanent OnOff light |
-| Each installed pump | R5+18..22; RG+1..5 readiness; RG+7..11 installation/modes | S22..S26:advertised native mode | One bridged Fan endpoint with speed slider, OnOff and Mode Select |
+| Each installed pump | R5+18..22; RG+1..5 readiness; RG+7..11 installation/modes | S22..S26:advertised native mode | One native Fan endpoint with speed slider, OnOff and Mode Select |
 | Blower mode | RC+10: 0 Variable, 1 Ramp, 2 Off | S28:0..2 | Permanent Fan endpoint with slider, OnOff and Mode Select |
 | Blower variable level | R6+1: 1..5 | S13:1..5; expected ACK `n  S13` | Variable 1..5 choices in the blower's same Mode Select list |
 
@@ -40,7 +40,7 @@ Lighting colour, effect, brightness and timing, heat-pump settings, auxiliary he
 
 ## Upgrade and acceptance
 
-Retain NVS during the application update to retain pairing. Existing thermostat/light/pump/blower/aggregator IDs keep their identities; absent pump IDs disappear from PartsList. Existing controller names and UI choices can be cached. Pump presence is re-established on every reboot and commands remain unavailable until fresh RF arrives. Do not erase pairing merely to update firmware.
+Retain NVS during the application update to retain pairing. Existing thermostat/light/pump/blower IDs remain stable; aggregator 9 is retired and absent pump IDs disappear from PartsList. Changing from bridged to native device types may require controller rediscovery; see [ADR-0001](decisions/0001-native-composite-matter-device.md). Existing controller names and UI choices can be cached. Pump presence is re-established on every reboot and commands remain unavailable until fresh RF arrives. Do not erase pairing merely to update firmware.
 
 Pump and blower device types change from plug/switch to Fan to request a speed UI; endpoint IDs remain the same. Existing controllers may cache the old switch type, while a fresh addition should discover Fan Control. Mode Select is an additional exact native-mode interface on the same endpoint. Apple Home and other controllers' actual slider/mode rendering still require physical validation; firmware cannot force a particular app widget. Validate both retained pairings and a fresh addition before deciding whether a controller needs re-adding.
 
