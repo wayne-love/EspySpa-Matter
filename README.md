@@ -11,9 +11,8 @@ Initial ESP32-C6 rewrite of [ESPySpa](https://github.com/wayne-love/ESPySpa): Sp
 | 2 | Light | On/off using fresh-state guarded W14 toggle |
 | 3–7 | Installed pump controls | Created after the first valid RF; Fan speed slider plus advertised native modes |
 | 8 | Blower control | Fan speed slider plus Off, Ramp and Variable levels 1–5 |
-| 9 | Matter aggregator | Groups the named UART-backed spa controls |
 
-The firmware supplies eSpa Temperature, eSpa Light, installed eSpa Pump 1–5 and eSpa Blower as individual bridged control names. Temperature, light and blower are permanent. Pump presence and capabilities are established once from the first valid RF of **each boot**, kept only in RAM, and fixed until reboot. Later reads update state/readiness without changing the model. Installed pump IDs stay 3–7 with gaps for absent pumps. See [native controls and acceptance](docs/CONTROLS.md) for exact mode mappings, blower sequencing, production speed ordering and controller UI validation.
+The firmware exposes native thermostat, light, installed pump and blower endpoints under one eSpa Matter node. Apple Home's per-endpoint names and room grouping require physical validation. See [ADR-0001](docs/decisions/0001-native-composite-matter-device.md) for the architecture trade-offs. Temperature, light and blower are permanent. Pump presence and capabilities are established once from the first valid RF of **each boot**, kept only in RAM, and fixed until reboot. Later reads update state/readiness without changing the model. Installed pump IDs stay 3–7 with gaps for absent pumps. See [native controls and acceptance](docs/CONTROLS.md) for exact mode mappings, blower sequencing, production speed ordering and controller UI validation.
 
 The thermostat stays in Heat mode: the original protocol does not establish a safe global heating-off command. Attempts to select Off/Cool/Auto are rejected. The spa retains its own heating, filtration, timers and safety interlocks. Some controllers may display modes or setpoints they cannot use; controller interoperability is part of hardware acceptance testing.
 
@@ -27,7 +26,7 @@ Initial flashing uses USB. Normal control and diagnosis use Thread. You need an 
 
 ## Factory reset
 
-For normal removal from Apple, keep the bridge online and use **iPhone Settings → General → Matter Accessories → Edit → delete the eSpa bridge → Remove From All Services**. Removing the bridge only from Home can leave Apple's separate Keychain fabric and prevent a return to pairing mode. See the [complete removal procedure](docs/COMMISSIONING.md#fully-removing-the-bridge-from-apple), including iOS menu variations and expected logs.
+For normal removal from Apple, keep eSpa online and use **iPhone Settings → General → Matter Accessories → Edit → delete eSpa → Remove From All Services**. Removing the bridge only from Home can leave Apple's separate Keychain fabric and prevent a return to pairing mode. See the [complete removal procedure](docs/COMMISSIONING.md#fully-removing-the-bridge-from-apple), including iOS menu variations and expected logs.
 
 Press and release **GP button (GPIO21) five times within five seconds** while the firmware is running. The **fifth release triggers the reset**; no sixth press is required. When the LED flashes purple, leave GP button released while the connector clears its pairings and Thread credentials and reboots ready to pair. Firmware and spa controller settings are retained. See [reset details](docs/STATUS_LED.md#factory-reset).
 
