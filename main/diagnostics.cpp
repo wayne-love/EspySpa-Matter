@@ -30,10 +30,7 @@ void log_thread_addresses() {
             if (count == addresses.size()) { truncated = true; break; }
             auto &entry = addresses[count++];
             otIp6AddressToString(&a->mAddress, entry.text, sizeof(entry.text));
-            // IPv6 link-local unicast is fe80::/10. The pinned OpenThread
-            // headers do not provide otIp6IsAddressLinkLocal().
-            const auto *bytes = a->mAddress.mFields.m8;
-            const bool local = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0x80;
+            const bool local = otIp6IsLinkLocalUnicast(&a->mAddress);
             const bool mesh = prefix && std::memcmp(a->mAddress.mFields.m8, prefix->m8, sizeof(prefix->m8)) == 0;
             entry.scope = local ? "link-local" : (mesh || a->mRloc ? "Thread mesh-local" : "routable candidate");
             entry.usable = role >= OT_DEVICE_ROLE_CHILD && !local && !mesh && !a->mRloc && a->mValid && a->mPreferred;
