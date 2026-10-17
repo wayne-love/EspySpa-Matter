@@ -26,11 +26,12 @@ void log_thread_addresses() {
     if (ot) {
         available = true; role = otThreadGetDeviceRole(ot);
         const auto prefix = otThreadGetMeshLocalPrefix(ot);
+        const auto link_local_address = otThreadGetLinkLocalIp6Address(ot);
         for (auto a = otIp6GetUnicastAddresses(ot); a; a = a->mNext) {
             if (count == addresses.size()) { truncated = true; break; }
             auto &entry = addresses[count++];
             otIp6AddressToString(&a->mAddress, entry.text, sizeof(entry.text));
-            const bool local = otIp6IsAddressLinkLocal(&a->mAddress);
+            const bool local = link_local_address && otIp6IsAddressEqual(&a->mAddress, link_local_address);
             const bool mesh = prefix && std::memcmp(a->mAddress.mFields.m8, prefix->m8, sizeof(prefix->m8)) == 0;
             entry.scope = local ? "link-local" : (mesh || a->mRloc ? "Thread mesh-local" : "routable candidate");
             entry.usable = role >= OT_DEVICE_ROLE_CHILD && !local && !mesh && !a->mRloc && a->mValid && a->mPreferred;

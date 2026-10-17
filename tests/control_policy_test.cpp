@@ -21,7 +21,8 @@ int main() {
     controls::Topology after_reboot;
     CHECK(!after_reboot.known && !after_reboot.present(0)); // No persistent configuration.
     CHECK(after_reboot.observe(state, true) && after_reboot.present(4));
-    CHECK(controls::pump_ids[0] == 3 && controls::pump_ids[3] == 6 && controls::aggregator_id == 9);
+    CHECK(controls::temperature_id == 1 && controls::light_id == 2 && controls::blower_id == 8);
+    CHECK(controls::pump_ids[0] == 3 && controls::pump_ids[3] == 6 && controls::pump_ids[4] == 7);
     spa::Request r{};
     CHECK(controls::mode_request(3, 4, r) && r.control == spa::Control::Pump1 && r.value == 4 && r.method == spa::RequestMethod::NativeMode);
     CHECK(controls::mode_request(6, 2, r) && r.control == spa::Control::Pump4 && r.value == 2);

@@ -58,9 +58,8 @@ An existing Home accessory can retain the name saved by its controller after a f
 | 2 | eSpa Light |
 | 3–7 | Installed eSpa pumps, discovered after the first valid RF of each boot |
 | 8 | eSpa Blower |
-| 9 | Matter aggregator for the named spa controls |
 
-The UART-backed controls now carry Bridged Device Basic Information with individual NodeLabel and ProductName attributes, grouped under an aggregator. Controller support determines how endpoints appear; verify that Apple Home uses these defaults during a new addition. Previously saved names may require manual renaming. Only installed pumps are added, after valid RF; light and blower are assumed present. Pump/blower endpoints are Matter Fans with a speed setting for slider/stepped UI, retained OnOff and Mode Select for exact advertised pump modes and blower Off/Ramp/Variable 1–5. The blower fan Auto choice represents Ramp. Apple Home presentation needs hardware validation. The thermostat supports Heat and setpoints from 5–41 °C in 0.2 °C steps. See [native controls](CONTROLS.md) for per-boot discovery, readback and UI limitations.
+The spa controls are native functional endpoints in one eSpa node, not bridged accessories. Native endpoints do not inherit per-accessory Bridged Device Basic Information names. Apple Home room grouping, per-control labels and tiles must be checked on fresh commissioning; previously saved labels may require manual renaming. The rationale and migration risks are recorded in [ADR-0001](decisions/0001-native-composite-matter-device.md). Only installed pumps are added, after valid RF; light and blower are assumed present. Pump/blower endpoints are Matter Fans with a speed setting for slider/stepped UI, retained OnOff and Mode Select for exact advertised pump modes and blower Off/Ramp/Variable 1–5. The blower fan Auto choice represents Ramp. Apple Home presentation needs hardware validation. The thermostat supports Heat and setpoints from 5–41 °C in 0.2 °C steps. See [native controls](CONTROLS.md) for per-boot discovery, readback and UI limitations.
 
 ## Open diagnostics without a serial cable
 
@@ -85,19 +84,19 @@ Normal firmware updates preserve pairing when NVS is retained. For an aborted pa
 
 ### Removing from a controller
 
-#### Fully removing the bridge from Apple
+#### Fully removing eSpa from Apple
 
-Apple pairing can create separate **Apple Home** and **Apple Keychain** Matter fabrics. Removing the bridge in the Home app can leave the Keychain fabric on the ESP. Removing the bridge includes its bridged controls, but does not necessarily remove every Matter fabric. If the log reports `Fabric removed; remaining fabrics: 1`, the ESP is still paired and does not reopen commissioning.
+Apple pairing can create separate **Apple Home** and **Apple Keychain** Matter fabrics. Removing eSpa in the Home app can leave the Keychain fabric on the ESP. Removing the accessory from Home does not necessarily remove every Matter fabric. If the log reports `Fabric removed; remaining fabrics: 1`, the ESP is still paired and does not reopen commissioning.
 
-To remove all pairings and return the bridge to pairing mode:
+To remove all pairings and return eSpa to pairing mode:
 
 1. Keep the ESP powered on and reachable over Thread.
 2. On the iPhone, open **Settings → General → Matter Accessories** (on versions with a Matter submenu, **General → Matter → Accessories**).
-3. Find the **eSpa bridge**, tap **Edit** and the delete button, then confirm removal.
+3. Find **eSpa**, tap **Edit** and the delete button, then confirm removal.
 4. Choose **Remove From All Services**. Removing only from Home or choosing **Remove from Keychain** is a different operation and is not the complete-removal procedure.
 5. Check the ESP log for `Fabric removed; remaining fabrics: 0` followed by `Last fabric removed; commissioning reopened (BLE and DNS-SD)`. The LED should flash red once per group, indicating ready-to-pair.
 
-This procedure also removes pairings with any other connected services. Skip confirmed in the issue #10 hardware test that this removed the remaining second fabric and restored pairing mode; removing the bridge only from Home left one fabric. No firmware recovery-policy change was needed for that test.
+This procedure also removes pairings with any other connected services. Skip confirmed in the issue #10 hardware test that this removed the remaining second fabric and restored pairing mode; removing the accessory only from Home left one fabric. No firmware recovery-policy change was needed for that test.
 
 See Apple's [pairing and removal instructions](https://support.apple.com/en-au/102135). Screen labels can vary with iOS version. If removal cannot reach the ESP, use the physical factory reset described above.
 
