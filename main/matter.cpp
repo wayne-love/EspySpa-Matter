@@ -317,7 +317,7 @@ void matter_start() {
     ESP_ERROR_CHECK(cluster::thermostat::attribute::create_max_heat_setpoint_limit(cl, 4100) ? ESP_OK : ESP_ERR_NO_MEM);
     ESP_ERROR_CHECK(cluster::thermostat::attribute::create_thermostat_running_state(cl, 0) ? ESP_OK : ESP_ERR_NO_MEM);
     endpoint::on_off_light::config_t lc;
-    auto light = endpoint::on_off_light::create(node, &lc, ENDPOINT_FLAG_BRIDGE, nullptr); configASSERT(light);
+    auto light = endpoint::on_off_light::create(node, &lc, ENDPOINT_FLAG_NONE, nullptr); configASSERT(light);
     configASSERT(endpoint::get_id(light) == light_id);
     // Reserve the existing pump identities before commissioning begins. Empty
     // reservations are removed before start(), so they are never accessories.
@@ -328,7 +328,7 @@ void matter_start() {
     }
     endpoint::fan::config_t bc;
     bc.fan_control.fan_mode_sequence = 2; // Off/Low/Medium/High/Auto (blower Auto presents Ramp).
-    auto blower = endpoint::fan::create(node, &bc, ENDPOINT_FLAG_BRIDGE, nullptr);
+    auto blower = endpoint::fan::create(node, &bc, ENDPOINT_FLAG_NONE, nullptr);
     configASSERT(blower && endpoint::get_id(blower) == blower_id);
     configure_fan(blower, 5, true);
     build_modes(); add_modes(blower, 2, "Spa blower mode and Variable level");
