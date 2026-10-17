@@ -53,7 +53,7 @@ void log_thread_addresses() {
         ESP_LOGI("spa_network", "IPv6: %s [%s]", addresses[i].text, addresses[i].scope);
         if (addresses[i].usable) {
             has_url = true;
-            ESP_LOGI("spa_network", "Diagnostics: http://[%s]:8080/ ; Firmware: http://[%s]:8081/ (requires border-router IPv6 route)",
+            ESP_LOGI("spa_network", "Diagnostics: http://[%s]/ ; Firmware: http://[%s]:8081/ (requires border-router IPv6 route)",
                      addresses[i].text, addresses[i].text);
         }
     }
@@ -146,7 +146,7 @@ esp_err_t diagnostic(httpd_req_t *req) {
 }
 }
 void diagnostics_start() {
-    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.server_port = 8080;
+    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG(); cfg.server_port = 80;
     cfg.stack_size = 8192; cfg.max_open_sockets = 2; cfg.lru_purge_enable = true;
     httpd_handle_t server; ESP_ERROR_CHECK(httpd_start(&server, &cfg));
     httpd_uri_t ui{}; ui.uri = "/"; ui.method = HTTP_GET; ui.handler = dashboard;
