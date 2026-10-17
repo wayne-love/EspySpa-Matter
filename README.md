@@ -43,3 +43,8 @@ tests/run.sh
 Requires g++ with C++17. Includes address/undefined-behaviour sanitizers. Firmware compilation runs separately in GitHub Actions. Diagnostics are always enabled without authentication on the trusted network. Open `http://[DEVICE_IPV6]/`; the page connects and refreshes automatically.
 
 Protocol offsets and sample fixture derive from ESPySpa commit `ca206919b4df5886a09e8c91fe82d01df1f5488a`; its MIT notice is retained in [docs/UPSTREAM-LICENSE](docs/UPSTREAM-LICENSE).
+
+
+### Spa state polling configuration
+
+The web interface on HTTP port 80 has a **Configuration** tab for the spa RF state polling interval. The permitted range is **15–300 seconds**; the initial default is **15 seconds**. Changes take effect without a restart and persist across reboots in NVS (`spa_config/poll_sec`). The read/write endpoint is `GET/POST /api/config` with JSON `{"poll_seconds":60}`. Invalid values are rejected. Command transactions still perform immediate RF reads for safety and confirmation, independently of this periodic interval. The controller's freshness allowance follows the selected interval plus ten seconds rather than a fixed 15 seconds.
