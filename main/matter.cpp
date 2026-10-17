@@ -20,7 +20,6 @@ constexpr uint16_t thermostat_id = controls::temperature_id, light_id = controls
 constexpr auto pump_ids = controls::pump_ids;
 const char *TAG = "spa_matter";
 node_t *matter_node;
-endpoint_t *aggregator_endpoint;
 controls::Topology topology;
 controls::CommissioningRecovery recovery;
 struct ModeRecord {
@@ -210,6 +209,8 @@ void publish(intptr_t) {
     finalise_controls(s);
     refresh_identity(0);
     bool fresh = s.valid && now_ms() - s.last_valid_ms <= 15000;
+    // Native endpoints do not have BridgedDeviceBasicInformation.Reachable.
+    // Retain freshness/health logs; command guards and nullable thermostat convey RF failures.
     static uint16_t reachability_seen = 0, reachable_mask = 0;
     for (uint16_t id : {thermostat_id, light_id, pump_ids[0], pump_ids[1], pump_ids[2], pump_ids[3], pump_ids[4], blower_id})
         if (endpoint::get(id)) {
@@ -217,7 +218,6 @@ void publish(intptr_t) {
             if (id == blower_id) reachable = reachable && controls::blower_matter_mode(s.state) != controls::unknown_mode;
             for (size_t p = 0; p < pump_ids.size(); ++p) if (id == pump_ids[p])
                 reachable = reachable && !topology.unknown(p) && s.state.pump_installed[p] && !s.state.pump_unknown_modes[p] && s.state.pumps[p] >= 0 && s.state.pumps[p] <= 4 && (topology.modes(p) & (1u << s.state.pumps[p]));
-            update(id, BridgedDeviceBasicInformation::Id, BridgedDeviceBasicInformation::Attributes::Reachable::Id, esp_matter_bool(reachable));
             const uint16_t bit = 1u << id;
             if (!(reachability_seen & bit) || bool(reachable_mask & bit) != reachable)
                 ESP_LOGI(TAG, "%s (endpoint 0x%04x): Reachable=%s%s", spa_log::endpoint_name(id), unsigned(id),
@@ -246,17 +246,8 @@ void publish(intptr_t) {
     }
     publishing = false;
 }
-void name_spa_endpoint(endpoint_t *ep, const char *name) {
-    endpoint::bridged_node::config_t cfg;
-    cfg.bridged_device_basic_information.reachable = false;
-    ESP_ERROR_CHECK(endpoint::bridged_node::add(ep, &cfg));
-    auto cl = cluster::get(ep, BridgedDeviceBasicInformation::Id);
-    auto label = const_cast<char *>(name);
-    configASSERT(cluster::bridged_device_basic_information::attribute::create_node_label(cl, label, std::strlen(name)));
-    configASSERT(cluster::bridged_device_basic_information::attribute::create_product_name(cl, label, std::strlen(name)));
-}
 endpoint_t *resume_pump(size_t p) {
-    auto ep = endpoint::resume(matter_node, ENDPOINT_FLAG_BRIDGE | ENDPOINT_FLAG_DESTROYABLE, pump_ids[p], nullptr);
+    auto ep = endpoint::resume(matter_node, ENDPOINT_FLAG_DESTROYABLE, pump_ids[p], nullptr);
     if (!ep) return nullptr;
     endpoint::fan::config_t cfg;
     if (!cluster::descriptor::create(ep, &cfg.descriptor, CLUSTER_FLAG_SERVER)) {
@@ -267,13 +258,10 @@ endpoint_t *resume_pump(size_t p) {
     cfg.fan_control.fan_mode_sequence = automatic ? (maximum <= 1 ? 4 : maximum == 2 ? 3 : 2) : (maximum <= 1 ? 5 : maximum == 2 ? 1 : 0);
     auto err = endpoint::fan::add(ep, &cfg);
     if (err != ESP_OK) { endpoint::destroy(matter_node, ep); return nullptr; }
-    const char *names[] = {"eSpa Pump 1", "eSpa Pump 2", "eSpa Pump 3", "eSpa Pump 4", "eSpa Pump 5"};
-    name_spa_endpoint(ep, names[p]);
     configure_fan(ep, maximum, automatic);
     uint8_t initial = 0;
     while (initial < 4 && !(topology.modes(p) & (1u << initial))) ++initial;
     add_modes(ep, initial, "Spa pump operating mode");
-    ESP_ERROR_CHECK(endpoint::set_parent_endpoint(ep, aggregator_endpoint));
     return ep;
 }
 void finalise_controls(const Snapshot &s) {
@@ -288,7 +276,6 @@ void finalise_controls(const Snapshot &s) {
                 if (err == ESP_OK) {
                     ESP_LOGI(TAG, "Discovered pump %u endpoint %u", unsigned(p + 1), pump_ids[p]);
                     MatterReportingAttributeChangeCallback(0, Descriptor::Id, Descriptor::Attributes::PartsList::Id);
-                    MatterReportingAttributeChangeCallback(controls::aggregator_id, Descriptor::Id, Descriptor::Attributes::PartsList::Id);
                 }
                 else { ESP_LOGE(TAG, "Pump enable failed: %s", esp_err_to_name(err)); endpoint::destroy(matter_node, ep); }
             }
@@ -310,7 +297,7 @@ void matter_publish() {
 }
 void matter_start() {
     esp_log_level_set("esp_matter_attribute", ESP_LOG_WARN);
-    ESP_LOGI(TAG, "Endpoint map: 1 Thermostat, 2 Lights, 3-7 installed Pumps 1-5, 8 Blower, 9 Spa bridge");
+    ESP_LOGI(TAG, "Native composite endpoint map: 0 root, 1 Thermostat, 2 Light, 3-7 installed Pumps, 8 Blower");
     ESP_LOGI(TAG, "Numeric attribute INFO traces suppressed; named spa state/commands and SDK warnings/errors retained");
     node::config_t cfg;
     std::strcpy(cfg.root_node.basic_information.node_label, "eSpa");
@@ -321,8 +308,7 @@ void matter_start() {
     tc.thermostat.system_mode = 4;
     tc.thermostat.features.heating.occupied_heating_setpoint = 3800;
     tc.thermostat.feature_flags = cluster::thermostat::feature::heating::get_id();
-    auto ep = endpoint::thermostat::create(node, &tc, ENDPOINT_FLAG_BRIDGE, nullptr); configASSERT(ep);
-    name_spa_endpoint(ep, "eSpa Temperature");
+    auto ep = endpoint::thermostat::create(node, &tc, ENDPOINT_FLAG_NONE, nullptr); configASSERT(ep);
     configASSERT(endpoint::get_id(ep) == thermostat_id);
     auto cl = cluster::get(ep, Thermostat::Id);
     ESP_ERROR_CHECK(cluster::thermostat::attribute::create_abs_min_heat_setpoint_limit(cl, 500) ? ESP_OK : ESP_ERR_NO_MEM);
@@ -332,7 +318,6 @@ void matter_start() {
     ESP_ERROR_CHECK(cluster::thermostat::attribute::create_thermostat_running_state(cl, 0) ? ESP_OK : ESP_ERR_NO_MEM);
     endpoint::on_off_light::config_t lc;
     auto light = endpoint::on_off_light::create(node, &lc, ENDPOINT_FLAG_BRIDGE, nullptr); configASSERT(light);
-    name_spa_endpoint(light, "eSpa Light");
     configASSERT(endpoint::get_id(light) == light_id);
     // Reserve the existing pump identities before commissioning begins. Empty
     // reservations are removed before start(), so they are never accessories.
@@ -344,15 +329,10 @@ void matter_start() {
     endpoint::fan::config_t bc;
     bc.fan_control.fan_mode_sequence = 2; // Off/Low/Medium/High/Auto (blower Auto presents Ramp).
     auto blower = endpoint::fan::create(node, &bc, ENDPOINT_FLAG_BRIDGE, nullptr);
-    configASSERT(blower && endpoint::get_id(blower) == blower_id); name_spa_endpoint(blower, "eSpa Blower");
+    configASSERT(blower && endpoint::get_id(blower) == blower_id);
     configure_fan(blower, 5, true);
     build_modes(); add_modes(blower, 2, "Spa blower mode and Variable level");
-    endpoint::aggregator::config_t ac;
-    aggregator_endpoint = endpoint::aggregator::create(node, &ac, ENDPOINT_FLAG_NONE, nullptr);
-    configASSERT(aggregator_endpoint && endpoint::get_id(aggregator_endpoint) == controls::aggregator_id);
     for (auto reservation : reserved) ESP_ERROR_CHECK(endpoint::destroy(node, reservation));
-    for (auto id : {thermostat_id, light_id, blower_id})
-        ESP_ERROR_CHECK(endpoint::set_parent_endpoint(endpoint::get(id), aggregator_endpoint));
     esp_openthread_platform_config_t ot = {
         .radio_config = {.radio_mode = RADIO_MODE_NATIVE},
         .host_config = {},
