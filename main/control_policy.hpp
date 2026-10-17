@@ -5,7 +5,7 @@
 
 // Logical identities survive sparse discovery and reboots. Configuration is RAM-only.
 namespace controls {
-constexpr uint16_t temperature_id = 1, light_id = 2, blower_id = 8, aggregator_id = 9;
+constexpr uint16_t temperature_id = 1, light_id = 2, blower_id = 8;
 constexpr std::array<uint16_t, 5> pump_ids{3, 4, 5, 6, 7};
 constexpr uint8_t unknown_mode = 255;
 struct Topology {
