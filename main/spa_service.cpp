@@ -9,6 +9,8 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "sdkconfig.h"
+#include "nvs.h"
+#include <atomic>
 #include <algorithm>
 namespace {
 SemaphoreHandle_t mutex;
@@ -16,6 +18,9 @@ QueueHandle_t requests;
 Snapshot current;
 constexpr uart_port_t port = UART_NUM_1;
 const char *TAG = "spa_state";
+std::atomic<uint32_t> poll_seconds{15};
+constexpr uint32_t MIN_POLL_SECONDS = 15, MAX_POLL_SECONDS = 300;
+uint64_t freshness_limit_ms() { return uint64_t(poll_seconds.load()) * 1000 + 10000; }
 void record(const std::string &tx, const std::string &rx, const std::string &result) {
     xSemaphoreTake(mutex, portMAX_DELAY);
     if (current.transactions.size() == 16) current.transactions.erase(current.transactions.begin());
@@ -74,10 +79,16 @@ std::string trimmed(std::string r) {
     auto last = r.find_last_not_of("\r\n "); return r.substr(first, last - first + 1);
 }
 void worker(void *) {
+    uint64_t next_poll = 0;
     for (;;) {
-        poll();
+        const uint64_t now = now_ms();
+        if (now >= next_poll) {
+            poll();
+            next_poll = now_ms() + uint64_t(poll_seconds.load()) * 1000;
+        }
         spa::Request r;
-        if (xQueueReceive(requests, &r, pdMS_TO_TICKS(5000)) != pdTRUE) continue;
+        const uint64_t remaining = next_poll > now_ms() ? next_poll - now_ms() : 0;
+        if (xQueueReceive(requests, &r, pdMS_TO_TICKS(static_cast<uint32_t>(std::min<uint64_t>(remaining, 1000)))) != pdTRUE) continue;
         const auto description = spa_log::request(r);
         ESP_LOGI("spa_command", "Executing %s", description.c_str());
         // Each stage has its own fresh RF and exact readback. No automatic retries.
@@ -116,7 +127,7 @@ void worker(void *) {
 uint64_t now_ms() { return esp_timer_get_time() / 1000; }
 SpaIndicator spa_indicator() {
     xSemaphoreTake(mutex, portMAX_DELAY);
-    SpaIndicator result{current.valid && now_ms() - current.last_valid_ms <= 15000, current.last_valid_ms != 0};
+    SpaIndicator result{current.valid && now_ms() - current.last_valid_ms <= freshness_limit_ms(), current.last_valid_ms != 0};
     xSemaphoreGive(mutex);
     return result;
 }
@@ -132,7 +143,7 @@ esp_err_t submit(spa::Request r) {
         record("rejected:" + std::to_string(int(r.control)) + ":" + std::to_string(r.value) + ":method=" + std::to_string(int(r.method)) + ":level=" + std::to_string(r.level), "", why);
         return result;
     };
-    if (!s.valid || now_ms() - s.last_valid_ms > 15000) return rejected(ESP_ERR_INVALID_STATE, "spa state stale or unavailable");
+    if (!s.valid || now_ms() - s.last_valid_ms > freshness_limit_ms()) return rejected(ESP_ERR_INVALID_STATE, "spa state stale or unavailable");
     spa::Command c; std::string error;
     if (!spa::command(s.state, r, c, error)) return rejected(ESP_ERR_INVALID_ARG, error);
     // Queue all requests, including apparent no-ops: an earlier queued write may change state.
@@ -141,7 +152,26 @@ esp_err_t submit(spa::Request r) {
     ESP_LOGI("spa_command", "Queued %s; awaiting spa readback", spa_log::request(r).c_str());
     return ESP_OK;
 }
+uint32_t spa_poll_interval_seconds() { return poll_seconds.load(); }
+esp_err_t spa_set_poll_interval_seconds(uint32_t seconds) {
+    if (seconds < MIN_POLL_SECONDS || seconds > MAX_POLL_SECONDS) return ESP_ERR_INVALID_ARG;
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("spa_config", NVS_READWRITE, &handle);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u32(handle, "poll_sec", seconds);
+    if (err == ESP_OK) err = nvs_commit(handle);
+    nvs_close(handle);
+    if (err == ESP_OK) poll_seconds.store(seconds);
+    return err;
+}
 void spa_start() {
+    nvs_handle_t handle;
+    if (nvs_open("spa_config", NVS_READONLY, &handle) == ESP_OK) {
+        uint32_t saved = 15;
+        if (nvs_get_u32(handle, "poll_sec", &saved) == ESP_OK && saved >= MIN_POLL_SECONDS && saved <= MAX_POLL_SECONDS)
+            poll_seconds.store(saved);
+        nvs_close(handle);
+    }
     mutex = xSemaphoreCreateMutex(); requests = xQueueCreate(8, sizeof(spa::Request));
     configASSERT(mutex && requests);
     uart_config_t cfg{}; cfg.baud_rate = 38400; cfg.data_bits = UART_DATA_8_BITS;
