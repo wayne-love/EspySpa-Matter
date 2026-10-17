@@ -115,7 +115,6 @@ void configure_fan(endpoint_t *ep, uint8_t maximum, bool automatic) {
     configASSERT(cluster::on_off::create(ep, &on_off, CLUSTER_FLAG_SERVER));
 }
 void finalise_controls(const Snapshot &s);
-void name_spa_endpoint(endpoint_t *ep, const char *name);
 bool publishing = false; // Only accessed on the CHIP task.
 std::atomic<int> last_event{0};
 std::atomic<unsigned> fabrics{0};
