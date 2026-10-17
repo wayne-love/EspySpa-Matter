@@ -9,6 +9,7 @@ Remote diagnostics are a first-class feature. Bound buffers/history; redact cred
 Run tests/run.sh after protocol changes. Firmware compilation and physical commissioning are separate validation gates.
 Respect the user's 50% credit limit: usage/quota is unavailable in this environment, so do bounded milestones, avoid broad explorations and multiple-agent work; do not claim to enforce a percentage.
 
+Architecture decisions must be documented under docs/decisions/ as ADRs recording alternatives, rationale, compatibility and tests, and linked from user-facing docs. The selected design is native multi-endpoint eSpa without the old aggregator; see docs/decisions/0001-native-composite-matter-device.md.
 For incremental changes, follow docs/QUALITY.md. Add failing regression cases for protocol bugs; preserve endpoint IDs and readback semantics. Artifacts must pass quality-gate before use. Hardware acceptance is separate from host CI.
 
 Release-only build policy: PRs run host tests, lint and the quality gate, but NEVER compile firmware. Compile/package only on an explicit manual development-release workflow dispatch or a `v*` production tag. Do not enable firmware builds on PRs or ordinary pushes.
