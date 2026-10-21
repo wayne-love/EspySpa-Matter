@@ -19,6 +19,8 @@ uint64_t now_ms();
 Snapshot snapshot();
 esp_err_t submit(spa::Request request);
 void spa_start();
+uint32_t spa_poll_interval_seconds();
+esp_err_t spa_set_poll_interval_seconds(uint32_t seconds);
 void matter_start();
 void matter_publish();
 void diagnostics_start();

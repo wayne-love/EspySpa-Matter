@@ -22,7 +22,7 @@ extern "C" void app_main() {
     firmware_update_start();
     reset_button_start();
 
-    ESP_LOGI(TAG, "Starting IPv6 diagnostics on port 8080");
+    ESP_LOGI(TAG, "Starting IPv6 diagnostics on port 80");
     diagnostics_start();
     ESP_LOGI(TAG, "Starting firmware management on port 8081");
     firmware_web_start();
