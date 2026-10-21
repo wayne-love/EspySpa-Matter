@@ -33,3 +33,6 @@ A separate Wi-Fi recovery mode or independent remote log collector is deferred. 
 Repeated `esp_matter_attribute` INFO read/write traces are suppressed at startup; its warnings/errors remain enabled. Application state and command logs supply the spa meaning instead of repeated numeric cluster/attribute IDs. Other SDK logs retain their existing levels.
 
 Hardware acceptance: compare named RF summaries and command confirmations with the spa panel, verify a failed poll reports unavailability and recovery reports valid state, and capture at least two minutes of serial output to confirm IPv6 reports repeat at 60-second intervals, including after a Thread address/network change. Host formatting/timing tests do not validate SDK locking or physical Thread routing.
+
+For read-only SSH status, serial logs, health checks and timestamped captures,
+see [Hardware testing](HARDWARE_TESTING.md) and its setup and safety limitations.
