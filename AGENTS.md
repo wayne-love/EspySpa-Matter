@@ -13,3 +13,20 @@ Architecture decisions must be documented under docs/decisions/ as ADRs recordin
 For incremental changes, follow docs/QUALITY.md. Add failing regression cases for protocol bugs; preserve endpoint IDs and readback semantics. Artifacts must pass quality-gate before use. Hardware acceptance is separate from host CI.
 
 Release-only build policy: PRs run host tests, lint and the quality gate, but NEVER compile firmware. Compile/package only on an explicit manual development-release workflow dispatch or a `v*` production tag. Do not enable firmware builds on PRs or ordinary pushes.
+
+Read-only hardware investigation: use `scripts/hardware/spa-status`, `spa-logs`,
+`spa-health` and `spa-capture`; see docs/HARDWARE_TESTING.md and
+docs/decisions/0002-read-only-hardware-toolkit.md. Configure connection details through `ESPYSPA_*` environment
+variables, data-only `~/.config/espyspa/hardware.env` defaults or ignored
+`.hardware.local.json`; never commit keys, addresses,
+credentials or captures. These tools only read logs and GET diagnostics through
+SSH on the Pi. Do not add serial writes, resets, service control or flashing.
+Run mocked Python host tests without ESP-IDF; live hardware access is a separate
+validation step and sandbox escalation requires approval.
+
+Hardware health defaults to `ESPYSPA_SPA_CONNECTED=true`. Accept only exact
+`true` or `false`; invalid values must fail before SSH. With `false`, explicitly
+report intentionally disconnected and exclude only RF freshness/poll failures
+from health. Preserve all RF evidence and independent Thread, Matter, SSH, HTTP
+and serial-log failures. Health serial checks establish log availability, not
+physical UART health. Cover both modes and independent failures in host tests.

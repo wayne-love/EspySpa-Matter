@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+from spa_toolkit import main
+import sys
+
+sys.exit(main())

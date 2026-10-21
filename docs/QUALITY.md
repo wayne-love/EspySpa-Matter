@@ -70,3 +70,7 @@ python3 -m unittest discover -s tests -p '*_test.py' -v
 ```
 
 Requires the selected C++ compiler and Python 3.9 or later. `scripts/check_build.py` runs after an SDK build and requires the generated `sdkconfig`, build images and flashing metadata.
+
+For read-only evidence collection, setup and mocked toolkit tests, see
+[Hardware testing](HARDWARE_TESTING.md). The hardware toolkit tests run in the
+existing Python unittest discovery job and require neither ESP-IDF nor live SSH.
