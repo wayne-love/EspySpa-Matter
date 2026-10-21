@@ -10,6 +10,7 @@ int main(int argc, char **argv) {
     std::string fixture((std::istreambuf_iterator<char>(f)), {}), error;
     spa::State s; CHECK(spa::parse(fixture, s, error));
     CHECK(s.water_tenths == 366 && s.setpoint_tenths == 380 && !s.light && s.heating);
+    CHECK(s.mains_electrical_valid && s.mains_current_tenths == 84 && s.mains_voltage_volts == 232);
     CHECK(s.pumps[0] == 4 && s.blower == 2 && s.pump_modes[0] == 19 && s.pump_modes[4] == 0);
     spa::Command c;
     CHECK(spa::command(s, {spa::Control::Setpoint, 382}, c, error)); CHECK(c.wire == "W40:382" && c.acknowledgement == "382");
@@ -46,6 +47,10 @@ int main(int argc, char **argv) {
     invalid(replace(",380,", ",oops,")); invalid(replace(",380,", ",380x,"));
     invalid(replace(",366,0,28,", ",9999,0,28,"));
     invalid(replace("1-1-014", "1-1-01x"));
+    auto no_electrical = replace(",R2,84,232,", ",R2,invalid,232,");
+    CHECK(spa::parse(no_electrical, s, error) && !s.mains_electrical_valid);
+    CHECK(s.water_tenths == 366 && s.setpoint_tenths == 380);
+    CHECK(spa::parse(fixture, s, error) && s.mains_electrical_valid);
     auto changed = replace("1-1-014", "1-2-0234"); CHECK(spa::parse(changed, s, error));
     CHECK(spa::manual_mode(s.pump_modes[0]) == 2);
     CHECK(spa::command(s, {spa::Control::Pump1, 1}, c, error) && c.wire == "S22:2");

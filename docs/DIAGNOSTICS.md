@@ -1,5 +1,11 @@
 # Network diagnostics
 
+## Spa AC supply telemetry (implementation staging)
+
+SpaNET RF provides **mains current** in `R2+1` (tenths of an ampere) and **mains voltage** in `R2+2` (volts). These are the spa controller's own measurements, not readings from the ESP32 supply. The read-only diagnostics API includes `mains_electrical` with `fresh`, `voltage_v`, and `current_a`. Invalid or absent electrical fields do not invalidate unrelated spa controls; the returned values are `null` when no valid recent RF snapshot is available. No derived watts or energy are inferred from voltage × current, since that would ignore power factor and possible phase configuration.
+
+**Matter publication is not yet enabled in this staging change.** Before adding an Electrical Power Measurement cluster (`0x0090`), implement its required Accuracy metadata and delegate against the pinned ESP-Matter SDK, confirm the AC feature and units, and test nullable/stale reads from a Matter controller. Avoid creating a separate visible bridged accessory simply for these engineering readings. Apple Home visibility/automation support is not guaranteed even for a standards-compliant cluster.
+
 Normal diagnostics use HTTP over IPv6 on **Thread**, port **8080**. Wi-Fi is disabled. The border router must route the Thread device's OMR IPv6 address to your computer. The device must be commissioned and attached; loss of Thread connectivity prevents this network-only diagnostic channel from working.
 
 1. Read the `spa_network` IPv6 report in the native USB serial log (startup and every 60 seconds), or discover the routable device address from the border router or Matter/Thread integration.

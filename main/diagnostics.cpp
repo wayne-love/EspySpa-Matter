@@ -125,6 +125,17 @@ esp_err_t diagnostic(httpd_req_t *req) {
     if (s.last_valid_ms) cJSON_AddNumberToObject(root, "state_age_ms", now - s.last_valid_ms);
     else cJSON_AddNullToObject(root, "state_age_ms");
     cJSON_AddStringToObject(root, "last_error", s.error.c_str());
+    // Publish only live, validated electrical readings; never mislabel old RF as current data.
+    auto electrical = cJSON_AddObjectToObject(root, "mains_electrical");
+    const bool electrical_fresh = s.valid && now - s.last_valid_ms <= 15000 && s.state.mains_electrical_valid;
+    cJSON_AddBoolToObject(electrical, "fresh", electrical_fresh);
+    if (electrical_fresh) {
+        cJSON_AddNumberToObject(electrical, "voltage_v", s.state.mains_voltage_volts);
+        cJSON_AddNumberToObject(electrical, "current_a", s.state.mains_current_tenths / 10.0);
+    } else {
+        cJSON_AddNullToObject(electrical, "voltage_v");
+        cJSON_AddNullToObject(electrical, "current_a");
+    }
     auto state = cJSON_AddObjectToObject(root, "last_known_spa_state");
     cJSON_AddNumberToObject(state, "water_c", s.state.water_tenths / 10.0);
     cJSON_AddNumberToObject(state, "setpoint_c", s.state.setpoint_tenths / 10.0);
