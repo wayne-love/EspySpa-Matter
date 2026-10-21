@@ -12,3 +12,6 @@ __pycache__/
 .ccache/
 .host-control-tests
 .host-log-tests
+.hardware.local.json
+hardware-captures/
+.host-alt-boot-tests
