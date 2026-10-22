@@ -24,6 +24,18 @@ SSH on the Pi. Do not add serial writes, resets, service control or flashing.
 Run mocked Python host tests without ESP-IDF; live hardware access is a separate
 validation step and sandbox escalation requires approval.
 
+Firmware diagnostics, configuration and update controls share the HTTP page on
+port 80; firmware controls are a separate tab. The old port 8081 page is retired.
+Local firmware uploads must be streamed to the inactive OTA partition, bounded
+by that partition's size, SHA-256 checked and validated by ESP-IDF. Firmware
+management has no authentication and does not require a GP-button press. Upload
+only trusted ESP32-C6 release artifacts; the HTTP transport and SHA-256 are not
+publisher authentication. Track password authentication for critical
+operations, basic HTTPS with a self-signed certificate, and mDNS discovery in
+TODO.md. Document OTA interface decisions in an ADR linked from docs/OTA.md. Do
+not build firmware outside an explicit development-release dispatch or a v*
+production tag.
+
 Hardware health defaults to `ESPYSPA_SPA_CONNECTED=true`. Accept only exact
 `true` or `false`; invalid values must fail before SSH. With `false`, explicitly
 report intentionally disconnected and exclude only RF freshness/poll failures

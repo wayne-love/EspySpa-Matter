@@ -39,8 +39,6 @@ void perform_reset(intptr_t) {
 void worker(void *) {
     ResetGesture reset;
     AlternateBootGesture alternate;
-    bool management_armed = false;
-    bool previous_pressed = true;
     bool pressed = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0;
     unsigned previous_count = 0;
     uint64_t last_sample_ms = 0;
@@ -74,17 +72,10 @@ void worker(void *) {
             xQueueReset(button_edges);
             reset = ResetGesture{}; alternate = AlternateBootGesture{};
             pressed = gpio_get_level(static_cast<gpio_num_t>(CONFIG_SPA_RESET_GPIO)) == 0;
-            management_armed = false; previous_pressed = true; previous_count = 0;
+            previous_count = 0;
             ESP_LOGW(TAG, "GP button edge buffer overflow; gesture discarded, release and retry");
             continue;
         }
-
-        if (!management_armed) {
-            if (!pressed) management_armed = true;
-        } else if (previous_pressed && !pressed) {
-            firmware_management_unlock();
-        }
-        previous_pressed = pressed;
 
         if (alternate.sample(pressed, now)) {
             ESP_LOGW(TAG, "Three-second GP button hold confirmed; alternate firmware requested");

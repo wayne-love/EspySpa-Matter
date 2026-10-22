@@ -1,12 +1,12 @@
 # Network diagnostics
 
-Normal diagnostics use HTTP over IPv6 on **Thread**, port **8080**. Wi-Fi is disabled. The border router must route the Thread device's OMR IPv6 address to your computer. The device must be commissioned and attached; loss of Thread connectivity prevents this network-only diagnostic channel from working.
+Normal diagnostics use HTTP over IPv6 on **Thread**, port **80**. Wi-Fi is disabled. The border router must route the Thread device's OMR IPv6 address to your computer. The device must be commissioned and attached; loss of Thread connectivity prevents this network-only diagnostic channel from working.
 
 1. Read the `spa_network` IPv6 report in the native USB serial log (startup and every 60 seconds), or discover the routable device address from the border router or Matter/Thread integration.
-2. Browse to `http://[IPv6-address]:8080/`.
-3. The read-only page connects automatically and refreshes every five seconds. Use Download snapshot to save its current JSON.
+2. Browse to `http://[IPv6-address]/`.
+3. The diagnostics view connects automatically and refreshes every five seconds. Use Download snapshot to save its current JSON.
 
-The dashboard and `/api/diagnostics` are always available without authentication while the device is reachable over Thread. This assumes the trusted network specified for this project. No token, login, or API enable setting is required. No remote write, reboot, arbitrary UART command, commissioning credential or Thread dataset is exposed.
+The diagnostics view and `/api/diagnostics` are available without authentication while the device is reachable over Thread. The diagnostics endpoint is read-only and exposes no arbitrary UART command, commissioning credential or Thread dataset. The same site has a separate Firmware tab with unauthenticated update, upload, channel and reboot operations; see [OTA management](OTA.md). Keep access limited to a trusted network.
 
 The snapshot includes:
 
