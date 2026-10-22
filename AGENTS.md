@@ -12,7 +12,13 @@ Respect the user's 50% credit limit: usage/quota is unavailable in this environm
 Architecture decisions must be documented under docs/decisions/ as ADRs recording alternatives, rationale, compatibility and tests, and linked from user-facing docs. The selected design is native multi-endpoint eSpa without the old aggregator; see docs/decisions/0001-native-composite-matter-device.md.
 For incremental changes, follow docs/QUALITY.md. Add failing regression cases for protocol bugs; preserve endpoint IDs and readback semantics. Artifacts must pass quality-gate before use. Hardware acceptance is separate from host CI.
 
-Release-only build policy: PRs run host tests, lint and the quality gate, but NEVER compile firmware. Compile/package only on an explicit manual development-release workflow dispatch or a `v*` production tag. Do not enable firmware builds on PRs or ordinary pushes.
+Firmware build policy: PRs run host tests, lint and the quality gate, but NEVER compile firmware. GitHub Actions compiles/packages only on an explicit manual development-release workflow dispatch or a `v*` production tag. Explicitly requested local firmware builds and packaging are allowed using the pinned ESP-IDF/ESP-Matter SDK baseline in docs/BUILD.md, including the matching Docker environment. Run host tests and package/configuration checks before using local artifacts. Local build authorization does not authorize flashing, OTA installation, publishing or hardware operations. Do not enable firmware builds on PRs or ordinary pushes.
+
+For requested local builds use `scripts/local-build prepare` once, then `test`,
+`build` and `package`; see docs/BUILD.md and ADR 0004. Keep `.local-build/` ignored,
+reuse its configuration/outputs/ccache, default to four jobs and run as the host
+UID/GID. Never automatically set-target/fullclean between builds. Local firmware
+must use a development identity with Git revision and dirty-state indication.
 
 Read-only hardware investigation: use `scripts/hardware/spa-status`, `spa-logs`,
 `spa-health` and `spa-capture`; see docs/HARDWARE_TESTING.md and
@@ -32,9 +38,8 @@ management has no authentication and does not require a GP-button press. Upload
 only trusted ESP32-C6 release artifacts; the HTTP transport and SHA-256 are not
 publisher authentication. Track password authentication for critical
 operations, basic HTTPS with a self-signed certificate, and mDNS discovery in
-TODO.md. Document OTA interface decisions in an ADR linked from docs/OTA.md. Do
-not build firmware outside an explicit development-release dispatch or a v*
-production tag.
+TODO.md. Document OTA interface decisions in an ADR linked from docs/OTA.md.
+Follow the firmware build policy above for local builds and release workflows.
 
 Hardware health defaults to `ESPYSPA_SPA_CONNECTED=true`. Accept only exact
 `true` or `false`; invalid values must fail before SSH. With `false`, explicitly

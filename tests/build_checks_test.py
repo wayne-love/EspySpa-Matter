@@ -1,5 +1,7 @@
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -36,6 +38,14 @@ class BuildChecks(unittest.TestCase):
 
     def test_valid_package(self):
         self.assertEqual(len(self.check()['images']), 4)
+
+    def test_cli_explicit_local_paths(self):
+        script = Path(__file__).resolve().parents[1] / 'scripts/check_build.py'
+        subprocess.run([sys.executable, str(script), '--build', str(self.build),
+                        '--config', str(self.config), '--partitions', str(self.partitions)],
+                       cwd=self.root, check=True, capture_output=True, text=True)
+        report = json.loads((self.build / 'quality-report.json').read_text())
+        self.assertEqual(len(report['images']), 4)
 
     def test_empty_image(self):
         (self.build / 'espyspa_matter.bin').write_bytes(b'')

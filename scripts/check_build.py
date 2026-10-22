@@ -1,5 +1,6 @@
 """Validate the generated configuration and flashing package before publication."""
 import hashlib
+import argparse
 import json
 import os
 from pathlib import Path
@@ -82,6 +83,11 @@ def check(build, config_path, partitions_path):
 
 
 if __name__ == '__main__':
-    report = check('build', 'sdkconfig', 'partitions.csv')
-    Path('build/quality-report.json').write_text(json.dumps(report, indent=2) + '\n')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--build', default='build')
+    parser.add_argument('--config', default='sdkconfig')
+    parser.add_argument('--partitions', default='partitions.csv')
+    args = parser.parse_args()
+    report = check(args.build, args.config, args.partitions)
+    (Path(args.build) / 'quality-report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))

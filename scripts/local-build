@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+image=espyspa-matter-local:idf5.4.1-matter4cedd4ad
+command="${1:---help}"
+case "$command" in
+    -h|--help|help)
+        cat <<'HELP'
+Usage: scripts/local-build {prepare|test|build|package|stats}
+  prepare  Prepare the pinned reusable SDK image (requires network once).
+  test     Run Python tests and both C++ host compiler suites in Docker.
+  build    Incrementally build and validate ESP32-C6 development firmware.
+  package  Test, build, validate and package local images without publishing.
+  stats    Show persistent compiler-cache statistics.
+ESPYSPA_BUILD_JOBS sets parallel compiler tasks per Ninja process (default: 4),
+not concurrent containers. Each command starts one container; commands sharing
+this checkout's build state are serialized.
+Outputs, logs, home and compiler cache persist in ignored .local-build/.
+HELP
+        exit 0 ;;
+    prepare)
+        [[ $# == 1 ]] || { echo 'prepare takes no arguments' >&2; exit 2; }
+        exec docker build -t "$image" "$repo_dir/tools/docker" ;;
+    test|build|package|stats) ;;
+    *) echo "Unknown command: $command (see --help)" >&2; exit 2 ;;
+esac
+[[ $# == 1 ]] || { echo 'Unexpected arguments (see --help)' >&2; exit 2; }
+jobs="${ESPYSPA_BUILD_JOBS:-4}"
+[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || { echo 'ESPYSPA_BUILD_JOBS must be a positive integer' >&2; exit 2; }
+docker image inspect "$image" >/dev/null || {
+    echo 'Cannot access SDK image. Check Docker daemon access or run scripts/local-build prepare.' >&2; exit 1;
+}
+mkdir -p "$repo_dir/.local-build/home" "$repo_dir/.local-build/ccache"
+# All bind-mounted files are created as the invoking Ubuntu user, never root.
+exec flock --nonblock --conflict-exit-code 75 "$repo_dir/.local-build/lock" \
+    docker run --rm --user "$(id -u):$(id -g)" \
+    --mount "type=bind,source=$repo_dir,target=/workspace" --workdir /workspace \
+    --env HOME=/workspace/.local-build/home --env ESPYSPA_BUILD_JOBS="$jobs" \
+    --env GIT_CONFIG_COUNT=1 --env GIT_CONFIG_KEY_0=safe.directory --env 'GIT_CONFIG_VALUE_0=*' \
+    --entrypoint /bin/bash "$image" /workspace/tools/docker/run.sh "$command"

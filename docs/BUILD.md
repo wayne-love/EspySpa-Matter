@@ -2,7 +2,74 @@
 
 To compile and publish **development firmware**, explicitly select **Validate ESP32-C6 migration → Run workflow** in GitHub Actions and choose the intended branch. The run builds and, after a successful quality gate, updates the moving `development` GitHub release. Download **espyspa-matter-development-esp32c6** from the completed run. To compile and publish **production firmware**, push a version tag matching `v*` (for example, `v1.2.3`). **Pull requests and ordinary pushes to main do not compile or publish firmware**; PRs run lightweight checks only. No local SDK is required. Compiler caching speeds up repeat release builds; see [quality checks](QUALITY.md).
 
-SDK baseline: ESP-IDF **v5.4.1**, ESP-Matter `release/v1.4.2` commit **4cedd4ad40821933d6cc237e80ab6604f2953fb0**. Follow the official [ESP-Matter setup](https://docs.espressif.com/projects/esp-matter/en/release-v1.4.2/esp32c6/developing.html) to install IDF and Matter prerequisites and connectedhomeip submodules. Do not substitute Arduino board packages.
+## Local Docker builds
+
+Explicit local builds use the same SDK baseline as CI: ESP-IDF **v5.4.1** and
+ESP-Matter **4cedd4ad40821933d6cc237e80ab6604f2953fb0**. Requires Linux, Docker
+daemon access, Git, Bash and `flock` (Ubuntu's util-linux package). No host ESP-IDF
+installation is needed. The first image preparation requires several GB of
+downloads and disk space; initial project configuration may also download the
+pinned component dependencies. See [ADR 0004](decisions/0004-local-docker-builds.md).
+
+```sh
+scripts/local-build prepare   # Once: SDK checkout/submodules baked into image
+scripts/local-build test      # Python tests plus g++ and clang++ host suites
+scripts/local-build build     # Incremental ESP32-C6 build and artifact validation
+scripts/local-build build     # Reuse configuration, Ninja outputs and ccache
+scripts/local-build package   # Test, build, validate, then stage a local package
+scripts/local-build stats     # Compiler-cache statistics from the last build
+```
+
+**Jobs means parallel compiler tasks inside a build container, not concurrent
+containers.** For example, four jobs allows Ninja to compile up to four
+independent source files at once. Each command starts one container; commands
+sharing this checkout's local build state are serialized by a lock.
+
+The default is four jobs per Ninja process, applied to both IDF's Ninja and
+Matter's nested Ninja through a wrapper because IDF 5.4 has no `idf.py -j` option.
+This is a per-process limit, not a combined four-task ceiling across both Ninja
+processes. Override with `ESPYSPA_BUILD_JOBS=2 scripts/local-build build`, for
+example. Run `prepare` again only when changing
+the pinned SDK or rebuilding the local image; ordinary builds do not fetch SDK
+sources or install tools. The image is tagged
+`espyspa-matter-local:idf5.4.1-matter4cedd4ad`. SDK versions are checked inside
+every command. Host UID/GID is passed to Docker so generated files remain owned
+by the invoking Ubuntu account; do not run the wrapper with sudo unless that is
+the intended output owner. Where Docker requires elevation, grant daemon access
+through your normal host administration workflow.
+
+All generated state is ignored under `.local-build/`: `build/`, `sdkconfig`,
+`ccache/`, `home/`, timestamped `logs/`, and `package/`. Build logs include elapsed
+seconds and both human-readable and machine-readable ccache statistics. Timings
+start inside the activated SDK environment; use `time scripts/local-build build`
+to include Docker startup and SDK activation in a wall-clock measurement. Counters
+are reset per build, but cached compiler results persist, capped at 500 MB. An
+unchanged Ninja build should invoke no compiler, so zero cache calls is expected
+and is faster than recompiling from cache. Commands sharing this state are
+serialized; exit code 75 means another local command holds the lock.
+
+The first build selects ESP32-C6 without `set-target`; later builds reuse the
+existing configuration and never call `fullclean`. A Git revision/dirty-state
+change triggers reconfiguration to refresh the firmware identity. Source and
+CMake changes are tracked by Ninja. Local versions look like
+`0.1.0-dev.local+ce3cdd8-dirty`, always on the **development** channel. The identity
+JSON records the full revision and dirty flag. Build paths are stable inside the
+container; keep using the wrapper rather than mixing host and container SDKs in
+the same build directory. Configuration is isolated from the root `sdkconfig`.
+
+`package` validates configuration, file overlap, both OTA slots and the 64 KiB
+headroom requirement using `scripts/check_build.py`. It copies validated output
+before calling `scripts/package_firmware.py`, preserving Ninja's original
+flashing metadata. The package contains `espyspa-matter.bin`, bootloader,
+partition table, OTA metadata, flashing JSON, quality report, debug ELF, identity
+metadata and a development manifest generated by `scripts/make_manifest.py`.
+Its `https://local.invalid/` URL is deliberately nonfunctional: this package is
+for local file use, not a published remote updater feed. Nothing is flashed,
+uploaded or published by these commands. Hardware acceptance remains separate.
+
+## Manual SDK setup (alternative)
+
+Follow the official [ESP-Matter setup](https://docs.espressif.com/projects/esp-matter/en/release-v1.4.2/esp32c6/developing.html) to install IDF and Matter prerequisites and connectedhomeip submodules. Do not substitute Arduino board packages.
 
 After installing ESP-IDF v5.4.1:
 
@@ -28,11 +95,11 @@ In **EspySpa hardware and diagnostics**, configure the UART pins (TX20 / RX19 by
 
 Check that menuconfig has Thread enabled, Wi-Fi station disabled, and target ESP32-C6. The device is always awake (mains powered). Keep the existing 38400 8N1 level-converted serial connection. ESP32-C6 uses UART1, not the UART2 of older ESP32 builds. Validate voltage levels, power supply and pin assignments before connecting the spa.
 
-The partition table targets 4 MB flash and reserves two OTA slots. Build failure for image size is a real gate; do not disable checks. OTA Requestor support is enabled, but an OTA provider, release signing and remote rollback workflow are not supplied by this milestone.
+The partition table targets 8 MB flash and reserves two OTA slots. Build failure for image size is a real gate; do not disable checks. The web updater uses the inactive slot and ESP-IDF rollback; see [OTA management](OTA.md). Release signing is not supplied.
 
 Follow the [Matter commissioning guide](COMMISSIONING.md) to join a Thread network using the development pairing code. No local SDK or serial monitor is required for pairing. The guide also covers Home Assistant, diagnostics and pairing recovery.
 
-Find the device's routable IPv6 address in the border router/Thread integration. Open `http://[DEVICE_IPV6]:8080/`. Some routers/controllers only expose link-local or mesh-local addresses; a routable OMR address and host IPv6 route are needed. See DIAGNOSTICS.md.
+Find the device's routable IPv6 address in the border router/Thread integration. Open `http://[DEVICE_IPV6]/`. Some routers/controllers only expose link-local or mesh-local addresses; a routable OMR address and host IPv6 route are needed. See DIAGNOSTICS.md.
 
 A physical factory reset is available: press and release GP button on GPIO21 five times within five seconds during normal operation. The connector clears its pairing/Thread configuration and reboots, retaining firmware. See [STATUS_LED.md](STATUS_LED.md#factory-reset). No network reset API is exposed. Do not factory-reset as a routine update.
 
