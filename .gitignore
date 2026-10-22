@@ -10,6 +10,7 @@ __pycache__/
 .host-led-tests
 .host-reset-tests
 .ccache/
+.local-build/
 .host-control-tests
 .host-log-tests
 .hardware.local.json

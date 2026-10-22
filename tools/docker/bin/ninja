@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# IDF 5.4 has no idf.py -j option, and Matter starts a second Ninja directly.
+# Apply the same limit to both without modifying either SDK checkout.
+exec "${ESPYSPA_NINJA:?Real Ninja path must be set by run.sh}" -j "${ESPYSPA_BUILD_JOBS:-4}" "$@"

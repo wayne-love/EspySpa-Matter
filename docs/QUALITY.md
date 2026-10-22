@@ -71,6 +71,11 @@ python3 -m unittest discover -s tests -p '*_test.py' -v
 
 Requires the selected C++ compiler and Python 3.9 or later. `scripts/check_build.py` runs after an SDK build and requires the generated `sdkconfig`, build images and flashing metadata.
 
+For explicitly requested local firmware builds, `scripts/local-build test`,
+`build` and `package` reuse these host and artifact checks in the pinned Docker
+environment. See [local Docker builds](BUILD.md#local-docker-builds). CI's PR and
+ordinary-push restrictions remain unchanged.
+
 For read-only evidence collection, setup and mocked toolkit tests, see
 [Hardware testing](HARDWARE_TESTING.md). The hardware toolkit tests run in the
 existing Python unittest discovery job and require neither ESP-IDF nor live SSH.

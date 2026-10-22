@@ -40,7 +40,7 @@ See [QUALITY.md](docs/QUALITY.md) for CI gates, artifact verification, branch pr
 tests/run.sh
 ```
 
-Requires g++ with C++17. Includes address/undefined-behaviour sanitizers. Firmware compilation runs separately in GitHub Actions. Diagnostics are always enabled without authentication on the trusted network. Open `http://[DEVICE_IPV6]/`; the page connects and refreshes automatically.
+Requires g++ with C++17. Includes address/undefined-behaviour sanitizers. Firmware compilation runs separately in GitHub Actions or through the [local Docker build workflow](docs/BUILD.md#local-docker-builds). Diagnostics are always enabled without authentication on the trusted network. Open `http://[DEVICE_IPV6]/`; the page connects and refreshes automatically.
 
 Protocol offsets and sample fixture derive from ESPySpa commit `ca206919b4df5886a09e8c91fe82d01df1f5488a`; its MIT notice is retained in [docs/UPSTREAM-LICENSE](docs/UPSTREAM-LICENSE).
 
