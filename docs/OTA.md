@@ -35,18 +35,19 @@ After normal application startup, EspySpa waits 30 seconds. If the Matter stack 
 
 Successful spa RF traffic is deliberately not required for firmware confirmation. A disconnected or powered-off spa must not cause a healthy connector firmware image to roll back.
 
-## Web controls
+## Web controls and local firmware files
 
-The diagnostics page exposes:
+The diagnostics, configuration and firmware controls are tabs on the same page at `http://[DEVICE_IPV6]/` (port 80). The Firmware tab exposes the running version, image channel, commit, OTA partition, update channel, status and alternate image, along with **Check and install update**, **Reboot into alternate image**, and **Reboot**.
 
-- running version, image channel, commit and OTA partition
-- update-channel selector
-- update status and target version
-- **Check and install update**
-- **Reboot into alternate image**
-- **Reboot**
+The Firmware tab also accepts a local file. Choose the app-only `espyspa-matter.bin` from a successful ESP32-C6 release artifact; do not choose a merged full-flash image. No GP-button press is required. The browser calculates SHA-256 and sends the file as a bounded raw request body. The device streams it into the inactive OTA slot, independently checks the SHA-256, asks ESP-IDF to validate the application image, selects that slot and reboots. A rejected or interrupted upload leaves the running slot selected. The image's NVS data, including Matter/Thread credentials, is retained. The upload size cannot exceed the inactive OTA partition.
 
-Mutation endpoints require the non-simple `X-EspySpa-Action: 1` header. This prevents an unrelated browser page from triggering a simple cross-origin form request. These controls are still local administrative controls, not an authentication boundary.
+Use only a trusted artifact produced by this repository's release workflow. SHA-256 detects transfer/file corruption; it is not a publisher signature. The web interface uses plain HTTP on the trusted local network, so it provides neither authentication nor transport encryption. Do not upload arbitrary binaries.
+
+Firmware update, upload, channel and reboot endpoints have no authentication or required action header. Any client that can reach the device's HTTP interface can issue these requests. The interface also uses plain HTTP, so requests are not encrypted. Keep the device on a trusted network. Password protection for critical operations, basic HTTPS with a self-signed certificate, and mDNS discovery are tracked in [TODO.md](../TODO.md).
+
+### Remote update connection failures
+
+The remote update begins by opening an HTTPS connection to the selected GitHub manifest. An `ESP_ERR_HTTP_CONNECT` at this stage, with no target version reported, means the manifest connection could not be opened; the error alone does not distinguish DNS, routing, firewall or TLS transport causes. It is not a manifest SHA-256 or firmware-image validation failure. The local-file path bypasses device-to-GitHub connectivity while preserving inactive-slot installation, SHA-256 checking and ESP-IDF image validation. Update status now includes the failing phase to help distinguish manifest fetch, manifest validation and image download/verification failures.
 
 ## Physical GP button
 
@@ -67,3 +68,5 @@ A button already held during power-on is ignored by this application gesture to 
 7. Five GP button presses continue to perform the existing Matter/Thread factory reset.
 
 The target module has 8 MB flash. The partition table therefore provides two approximately 3.875 MiB OTA application slots, leaving ample headroom for the updater, Matter stack and future firmware growth while retaining A/B rollback.
+
+See [ADR 0003](decisions/0003-unified-firmware-web-management.md) for the unified page and local upload design.

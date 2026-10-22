@@ -34,16 +34,24 @@ constexpr const char *NVS_NAMESPACE = "firmware";
 constexpr const char *NVS_CHANNEL_KEY = "channel";
 constexpr size_t MANIFEST_LIMIT = 4096;
 constexpr uint32_t VALIDATION_DELAY_MS = 30000;
-constexpr uint32_t MANAGEMENT_UNLOCK_MS = 60000;
 constexpr unsigned MAX_HTTP_REDIRECTS = 5;
-
-volatile uint32_t management_unlocked_until_ms = 0;
 
 SemaphoreHandle_t state_mutex;
 bool update_busy = false;
 std::string update_state = "idle";
 std::string update_error;
 std::string update_target_version;
+
+struct UploadState {
+    esp_ota_handle_t handle = 0;
+    const esp_partition_t *target = nullptr;
+    mbedtls_sha256_context sha{};
+    size_t expected_length = 0;
+    size_t written = 0;
+    std::string expected_sha256;
+    bool active = false;
+};
+UploadState upload_state_data;
 
 struct Manifest {
     std::string version;
@@ -307,26 +315,44 @@ esp_err_t schedule_restart() {
     return xTaskCreate(restart_task, "fw_restart", 2048, nullptr, 3, nullptr) == pdPASS ? ESP_OK : ESP_ERR_NO_MEM;
 }
 
+void clear_upload_state() {
+    if (upload_state_data.active) {
+        esp_ota_abort(upload_state_data.handle);
+        mbedtls_sha256_free(&upload_state_data.sha);
+    }
+    upload_state_data = UploadState{};
+}
+
 void update_task(void *) {
     const std::string channel = load_channel();
     set_state("checking", {}, {});
 
     std::string body;
+    const char *phase = "manifest fetch";
     esp_err_t err = fetch_text(manifest_url_for(channel), body);
     Manifest manifest;
-    if (err == ESP_OK) err = parse_manifest(body, manifest);
+    if (err == ESP_OK) {
+        phase = "manifest validation";
+        err = parse_manifest(body, manifest);
+    }
     if (err == ESP_OK && manifest.channel != channel) err = ESP_ERR_INVALID_RESPONSE;
 
     if (err == ESP_OK) {
+        phase = "firmware download or image verification";
         set_state("downloading", {}, manifest.version);
         err = download_to_inactive_slot(manifest);
     }
 
     if (err == ESP_OK) {
         set_state("rebooting", {}, manifest.version);
-        schedule_restart();
-    } else {
-        set_state("failed", esp_err_to_name(err), manifest.version);
+        phase = "restart scheduling";
+        err = schedule_restart();
+        if (err != ESP_OK) esp_ota_set_boot_partition(esp_ota_get_running_partition());
+    }
+    if (err != ESP_OK) {
+        const std::string message = std::string(phase) + ": " + esp_err_to_name(err);
+        ESP_LOGE(TAG, "Firmware update failed during %s: %s", phase, esp_err_to_name(err));
+        set_state("failed", message, manifest.version);
     }
 
     lock_state();
@@ -398,19 +424,6 @@ std::string firmware_update_channel() {
     return load_channel();
 }
 
-void firmware_management_unlock() {
-    management_unlocked_until_ms =
-        static_cast<uint32_t>(now_ms()) + MANAGEMENT_UNLOCK_MS;
-    ESP_LOGI(TAG, "Firmware management unlocked for %u seconds",
-             static_cast<unsigned>(MANAGEMENT_UNLOCK_MS / 1000));
-}
-
-bool firmware_management_is_unlocked() {
-    const uint32_t now = static_cast<uint32_t>(now_ms());
-    const uint32_t until = management_unlocked_until_ms;
-    return until != 0 && static_cast<int32_t>(until - now) > 0;
-}
-
 esp_err_t firmware_set_update_channel(const std::string &channel) {
     if (channel != "release" && channel != "development") return ESP_ERR_INVALID_ARG;
 
@@ -446,6 +459,105 @@ esp_err_t firmware_start_update() {
         return ESP_ERR_NO_MEM;
     }
     return ESP_OK;
+}
+
+esp_err_t firmware_upload_begin(size_t content_length, const std::string &expected_sha256) {
+    if (!state_mutex || content_length == 0 || !valid_hex_sha256(expected_sha256)) return ESP_ERR_INVALID_ARG;
+
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    const esp_partition_t *target = esp_ota_get_next_update_partition(running);
+    if (!target || target == running) return ESP_ERR_NOT_FOUND;
+    if (content_length > target->size) return ESP_ERR_INVALID_SIZE;
+
+    lock_state();
+    if (update_busy) {
+        unlock_state();
+        return ESP_ERR_INVALID_STATE;
+    }
+    update_busy = true;
+    update_state = "uploading";
+    update_error.clear();
+    update_target_version.clear();
+    unlock_state();
+
+    clear_upload_state();
+    upload_state_data.expected_length = content_length;
+    upload_state_data.expected_sha256 = expected_sha256;
+    std::transform(upload_state_data.expected_sha256.begin(), upload_state_data.expected_sha256.end(),
+                   upload_state_data.expected_sha256.begin(), [](unsigned char c) { return std::tolower(c); });
+    upload_state_data.target = target;
+
+    esp_err_t err = esp_ota_begin(target, content_length, &upload_state_data.handle);
+    const bool ota_started = err == ESP_OK;
+    if (err == ESP_OK) {
+        mbedtls_sha256_init(&upload_state_data.sha);
+        if (mbedtls_sha256_starts(&upload_state_data.sha, 0) != 0) err = ESP_FAIL;
+        else upload_state_data.active = true;
+    }
+    if (err != ESP_OK) {
+        if (ota_started) esp_ota_abort(upload_state_data.handle);
+        mbedtls_sha256_free(&upload_state_data.sha);
+        upload_state_data = UploadState{};
+        lock_state();
+        update_busy = false;
+        update_state = "failed";
+        update_error = esp_err_to_name(err);
+        unlock_state();
+    }
+    return err;
+}
+
+esp_err_t firmware_upload_write(const void *data, size_t length) {
+    if (!upload_state_data.active || !data || length == 0 ||
+        length > upload_state_data.expected_length - upload_state_data.written) return ESP_ERR_INVALID_ARG;
+    if (mbedtls_sha256_update(&upload_state_data.sha, static_cast<const unsigned char *>(data), length) != 0) {
+        return ESP_FAIL;
+    }
+    const esp_err_t err = esp_ota_write(upload_state_data.handle, data, length);
+    if (err == ESP_OK) upload_state_data.written += length;
+    return err;
+}
+
+esp_err_t firmware_upload_finish() {
+    if (!upload_state_data.active) return ESP_ERR_INVALID_STATE;
+    if (upload_state_data.written != upload_state_data.expected_length) {
+        firmware_upload_abort();
+        return ESP_ERR_INVALID_SIZE;
+    }
+    unsigned char digest[32]{};
+    esp_err_t err = mbedtls_sha256_finish(&upload_state_data.sha, digest) == 0 ? ESP_OK : ESP_FAIL;
+    mbedtls_sha256_free(&upload_state_data.sha);
+    if (err == ESP_OK && digest_hex(digest) != upload_state_data.expected_sha256) err = ESP_ERR_INVALID_CRC;
+
+    const esp_ota_handle_t handle = upload_state_data.handle;
+    const esp_partition_t *target = upload_state_data.target;
+    upload_state_data.active = false;
+    upload_state_data = UploadState{};
+    if (err == ESP_OK) err = esp_ota_end(handle);
+    else esp_ota_abort(handle);
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (err == ESP_OK) err = esp_ota_set_boot_partition(target);
+    if (err == ESP_OK) {
+        err = schedule_restart();
+        if (err != ESP_OK && running) esp_ota_set_boot_partition(running);
+    }
+
+    lock_state();
+    update_busy = false;
+    update_state = err == ESP_OK ? "rebooting" : "failed";
+    update_error = err == ESP_OK ? "" : esp_err_to_name(err);
+    unlock_state();
+    if (err == ESP_OK) ESP_LOGI(TAG, "Local firmware image installed in %s; reboot scheduled", target->label);
+    return err;
+}
+
+void firmware_upload_abort() {
+    if (upload_state_data.active) clear_upload_state();
+    lock_state();
+    update_busy = false;
+    update_state = "failed";
+    update_error = "upload interrupted";
+    unlock_state();
 }
 
 esp_err_t firmware_reboot_alternate() {
@@ -495,8 +607,6 @@ std::string firmware_info_json() {
     json += ",\"update_state\":" + json_escape(current_state);
     json += ",\"update_error\":" + json_escape(current_error);
     json += ",\"update_target_version\":" + json_escape(current_target);
-    json += ",\"management_unlocked\":" +
-            std::string(firmware_management_is_unlocked() ? "true" : "false");
     if (other_valid) {
         json += ",\"alternate\":{\"partition\":" + json_escape(other->label);
         json += ",\"version\":" + json_escape(other_desc.version) + "}";

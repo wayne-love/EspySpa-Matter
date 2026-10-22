@@ -24,8 +24,6 @@ extern "C" void app_main() {
 
     ESP_LOGI(TAG, "Starting IPv6 diagnostics on port 80");
     diagnostics_start();
-    ESP_LOGI(TAG, "Starting firmware management on port 8081");
-    firmware_web_start();
 
     spa_worker_start();
     ESP_LOGI(TAG, "Startup complete; spa worker running");
