@@ -13,7 +13,7 @@ Configure these environment variables with your own connection details:
 | `ESPYSPA_SSH_HOST` | Pi hostname or address |
 | `ESPYSPA_SSH_USER` | Pi login user |
 | `ESPYSPA_SSH_KEY` | Path to an existing SSH private key |
-| `ESPYSPA_DIAGNOSTICS_URL` | `http://<device-host>:8080/api/diagnostics`; bracket IPv6 literals |
+| `ESPYSPA_DIAGNOSTICS_URL` | `http://<device-host>/api/diagnostics`; bracket IPv6 literals |
 | `ESPYSPA_SPA_CONNECTED` | Exactly `true` or `false`; default `true` (environment or hardware.env) |
 | `ESPYSPA_LOG_PATH` | Optional absolute log path; default `/var/log/espyspa/serial.log` |
 
@@ -158,7 +158,7 @@ Example using placeholders (replace them with your own details):
 export ESPYSPA_SSH_HOST=pi.example.invalid
 ESPYSPA_SSH_USER='your-user'
 ESPYSPA_SSH_KEY="/absolute/path/to/existing-key"
-ESPYSPA_DIAGNOSTICS_URL=http://device.example.invalid:8080/api/diagnostics
+ESPYSPA_DIAGNOSTICS_URL=http://device.example.invalid/api/diagnostics
 ESPYSPA_SPA_CONNECTED=false
 ```
 

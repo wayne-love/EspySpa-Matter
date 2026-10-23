@@ -147,13 +147,13 @@ def diagnostics(cfg):
         if not isinstance(cfg['diagnostics_url'], str):
             raise ValueError('URL must be text')
         url = urllib.parse.urlsplit(cfg['diagnostics_url'])
-        valid = (url.scheme == 'http' and url.hostname and url.port in (None, 8080)
+        valid = (url.scheme == 'http' and url.hostname and url.port in (None, 80)
                  and not url.username and not url.password and url.path == '/api/diagnostics'
                  and not url.query and not url.fragment)
     except (ValueError, TypeError):
         valid = False
     if not valid:
-        raise DiagnosticError('Set ESPYSPA_DIAGNOSTICS_URL to http://<host>:8080/api/diagnostics')
+        raise DiagnosticError('Set ESPYSPA_DIAGNOSTICS_URL to http://<host>/api/diagnostics')
     command = ('curl -q --globoff --noproxy ' + shlex.quote('*') +
               ' --proto =http --connect-timeout 5 --max-time 20 --max-filesize 1048576 -fsS -- ' +
               shlex.quote(cfg['diagnostics_url']) + ' | head -c 1048577')

@@ -12,7 +12,7 @@ spec = importlib.util.spec_from_file_location('spa_toolkit', Path(__file__).reso
 tool = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tool)
 CFG = dict(ssh_host='pi.example.invalid', ssh_user='tester', ssh_key='/tmp/test-key',
-           diagnostics_url='http://device.example.invalid:8080/api/diagnostics', log_path='/var/log/spa.log')
+           diagnostics_url='http://device.example.invalid/api/diagnostics', log_path='/var/log/spa.log')
 DATA = dict(firmware='test', fresh=True, thread={'role': 3}, matter={'fabric_count': 2}, counters={'polls_failed': 0})
 
 
@@ -47,6 +47,16 @@ class HardwareTests(unittest.TestCase):
         self.assertEqual(kwargs['timeout'], 30)
 
     @patch.object(tool.subprocess, 'run')
+    def test_port_80_diagnostics(self, run):
+        run.return_value = self.response(json.dumps(DATA))
+        for url in ('http://device.example.invalid/api/diagnostics',
+                    'http://device.example.invalid:80/api/diagnostics',
+                    'http://[fd00::1]:80/api/diagnostics'):
+            with self.subTest(url=url):
+                self.assertEqual(tool.diagnostics(dict(CFG, diagnostics_url=url)), DATA)
+                self.assertIn(url, run.call_args.args[0][-1])
+
+    @patch.object(tool.subprocess, 'run')
     def test_failures(self, run):
         for code in (255, 22, 28, 7, 63, 1):
             run.return_value = self.response('', code)
@@ -67,7 +77,7 @@ class HardwareTests(unittest.TestCase):
 
     @patch.object(tool.subprocess, 'run')
     def test_reject_other_endpoints(self, run):
-        for url in ([], {}, 123, 'http://host/reset', 'http://host:8081/api/diagnostics', 'http://user:pass@host/api/diagnostics', 'http://host/api/diagnostics?command=RF'):
+        for url in ([], {}, 123, 'http://host/reset', 'http://host:8080/api/diagnostics', 'http://host:8081/api/diagnostics', 'http://user:pass@host/api/diagnostics', 'http://host/api/diagnostics?command=RF'):
             with self.assertRaises(tool.DiagnosticError):
                 tool.diagnostics(dict(CFG, diagnostics_url=url))
         run.assert_not_called()
@@ -237,7 +247,7 @@ class HardwareTests(unittest.TestCase):
         self.write_env("# defaults\nexport ESPYSPA_SSH_HOST=pi.example.invalid\n"
                        "ESPYSPA_SSH_USER='file-user' # comment\n"
                        'ESPYSPA_SSH_KEY="/tmp/key with spaces"\n'
-                       "ESPYSPA_DIAGNOSTICS_URL=http://device.example.invalid:8080/api/diagnostics\n"
+                       "ESPYSPA_DIAGNOSTICS_URL=http://device.example.invalid/api/diagnostics\n"
                        "ESPYSPA_SPA_CONNECTED=false\n")
         path = self.home / 'local.json'
         with patch.dict(tool.os.environ, {}, clear=True):
