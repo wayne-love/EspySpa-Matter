@@ -47,3 +47,19 @@ report intentionally disconnected and exclude only RF freshness/poll failures
 from health. Preserve all RF evidence and independent Thread, Matter, SSH, HTTP
 and serial-log failures. Health serial checks establish log availability, not
 physical UART health. Cover both modes and independent failures in host tests.
+
+Thread HTTPS DNS uses the supported synchronous lwIP netconn hook and current
+OpenThread SRP discovery; see docs/decisions/0005-thread-ota-dns.md and docs/OTA.md.
+Keep native AAAA and OpenThread RFC 6052 NAT64 fallback, no hardcoded DNS/router,
+and preserve TLS hostname/certificate verification on every redirect. Do not
+block OT/tcpip callbacks or hold the OT lock while waiting for DNS. Keep the IDF
+DNS64 helper disabled; generated configuration must pass scripts/check_build.py.
+Host DNS mocks are separate from target compilation and hardware acceptance.
+
+Expose the current routable IPv6 web URL through endpoint-0 Basic Information
+ProductURL and HTTP diagnostics; see docs/decisions/0006-direct-ipv6-product-url.md.
+The pinned SDK reads ProductURL through DeviceInstanceInfoProvider: override that
+getter while forwarding all other factory data. Update/report on the CHIP task,
+release the OT lock first, clear unusable URLs and never persist runtime addresses
+in factory NVS. Do not reintroduce custom web SRP/mDNS services or hostname aliases;
+preserve Matter's own SRP/operational discovery and the OTA Thread DNS bridge.

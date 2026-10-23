@@ -8,6 +8,9 @@ idf_component_register(
         "reset_button.cpp"
         "firmware_update.cpp"
         "firmware_web.cpp"
+        "thread_dns.cpp"
+        "ota_http.cpp"
+        "product_url.cpp"
     INCLUDE_DIRS "."
     REQUIRES
         spa_protocol
@@ -20,6 +23,8 @@ idf_component_register(
         app_update
         json
         openthread
+        lwip
+        esp_netif
         led_strip
         esp_driver_gpio
         mbedtls

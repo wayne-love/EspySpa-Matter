@@ -36,3 +36,29 @@ Hardware acceptance: compare named RF summaries and command confirmations with t
 
 For read-only SSH status, serial logs, health checks and timestamped captures,
 see [Hardware testing](HARDWARE_TESTING.md) and its setup and safety limitations.
+
+## Matter ProductURL
+
+Basic Information on endpoint **0** exposes **ProductURL** (cluster `0x0028`,
+attribute `0x000d`) as the current web address: `http://[IPv6-address]/`. HTTP
+`/api/diagnostics` includes the same value as `product_url`, and serial output
+reports changes. The URL opens the unified diagnostics/configuration/firmware
+page on port 80. The application no longer registers a web SRP/mDNS service or
+attempts friendly `.local` aliases. Matter's own discovery remains enabled.
+
+The URL selects a preferred routable IPv6 candidate while Thread is attached,
+refreshes approximately every five seconds and on Matter events, and clears to
+an empty string when no suitable address remains. Link-local, mesh-local, RLOC
+and other unusable scopes are excluded. A transient Thread-lock failure keeps
+the last value until a later refresh. Reachability still requires a route through
+the border router. Controllers may cache this attribute or omit a clickable link.
+See [ADR 0006](decisions/0006-direct-ipv6-product-url.md).
+
+With an existing authorized Matter controller, a read-only check is:
+
+```sh
+chip-tool basicinformation read product-url NODE_ID 0
+```
+
+Reuse its existing operational credentials; this command does not commission a
+new fabric. GET the returned bracketed IPv6 URL from an IPv6-capable LAN client.

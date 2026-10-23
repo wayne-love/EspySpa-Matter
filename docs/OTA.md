@@ -70,3 +70,119 @@ A button already held during power-on is ignored by this application gesture to 
 The target module has 8 MB flash. The partition table therefore provides two approximately 3.875 MiB OTA application slots, leaving ample headroom for the updater, Matter stack and future firmware growth while retaining A/B rollback.
 
 See [ADR 0003](decisions/0003-unified-firmware-web-management.md) for the unified page and local upload design.
+
+## Thread DNS integration
+
+[ADR 0005](decisions/0005-thread-ota-dns.md) records the pinned SDK evidence and
+resolver design. ESP-TLS uses lwIP, while Matter discovers DNS through OpenThread;
+`getaddrinfo() returns 202` means EAI_FAIL, not a manifest hash failure. The custom
+netconn hook delegates hostname resolution to the currently discovered Thread
+DNS server, preferring AAAA and synthesizing A-only answers through OpenThread's
+advertised NAT64 prefix. Simply enabling IDF's DNS64 helper is insufficient.
+No fixed router/public DNS address is used. Both manifest and image redirects
+remain HTTPS with hostname verification and the certificate bundle enabled.
+
+`GET /api/firmware` includes `dns` lookup observations: `last_result`,
+`last_ot_error`, `observed_uptime_s`, `attached`, `discovered_dns`, `nat64_route`,
+`attempts`, `in_flight` and fixed `results` counters. Check observation age;
+these flags are not continuously refreshed. Serial `thread_dns` results distinguish
+`missing_dns_configuration`, `hostname_resolution_failed`, `nat64_unavailable`,
+`thread_detached`, `network_changed`, `dns_timeout`, `resolver_busy` and
+`thread_lock_timeout`. Missing DNS means no current auto-discovered running SRP
+server; NAT64 unavailable means IPv4 translation is needed but no prefix is
+available. An advertised prefix alone does not prove working translation.
+Manifest/image connect errors include stage, redirect hop and the last DNS result;
+concurrent lookups can change that last result. TLS/routing failures after a
+successful resolution still require transport evidence.
+
+### Thread DNS hardware acceptance
+
+Pending separate build and hardware authorization; host tests cannot establish
+these results. Do not trigger updates merely to inspect diagnostics.
+
+1. On an authorized pinned-SDK build, regenerate configuration as needed and run
+   the generated-config/package quality gate. Confirm custom netconn hook, DNS/SRP,
+   IPv4/IPv6 and HTTPS are enabled, IDF DNS64/external asynchronous DNS hooks are
+   disabled, and insecure TLS options remain disabled. Record build identity.
+2. Before any separately authorized OTA, capture firmware status, serial, Thread,
+   Matter fabric count and fresh spa RF with the read-only hardware toolkit.
+   Preserve pairing/dataset storage; no reset or new commissioning is needed.
+3. With the existing Apple border routers, verify discovered DNS and native AAAA
+   resolution. Verify A-only resolution uses an advertised NAT64 prefix, and real
+   HTTPS succeeds. Exercise a supported non-/96 test prefix only in a separately
+   authorized test network; do not reconfigure the operational network for this.
+4. During a separately authorized development update, record manifest target and
+   SHA-256 and inspect both manifest and image stages, including GitHub redirect
+   hosts. Require successful TLS verification at every hop. In an isolated test
+   setup, an invalid certificate or HTTP redirect must fail, never bypass TLS.
+5. In an authorized isolated setup, test absent DNS, A-only DNS without NAT64,
+   DNS timeout/NXDOMAIN, detach/reattach and border-router/server replacement.
+   Verify distinct diagnostics, bounded waits and recovery on the next request.
+   Native AAAA must work without NAT64. Do not disrupt production connectivity.
+6. After authorized installation, confirm manifest/running version agreement,
+   OTA verification, retained Matter fabrics, Thread attachment and fresh RF.
+   Save before/after captures. No such installation or hardware test was performed
+   as part of this source-only fix.
+
+### GitHub redirect request buffer
+
+`HTTP_CLIENT: Out of buffer` after successful DNS and certificate validation
+indicates a different failure: IDF 5.4.1 must fit the full HTTP request line,
+including the redirect query, in its transmit buffer. Both OTA download clients
+now use a fixed 8 KiB TX buffer instead of IDF's 512-byte default for GitHub's
+long signed asset URLs. This is separate from the 4 KiB manifest **body** limit.
+Requests beyond the TX bound still fail; no unbounded retry/allocation is used.
+Never publish signed redirect URLs in diagnostics. See the follow-up evidence in
+[ADR 0005](decisions/0005-thread-ota-dns.md). Hardware acceptance must confirm
+both manifest and image redirects complete, followed by SHA-256 verification;
+DNS/TLS success alone does not establish successful installation.
+
+### Download progress
+
+The firmware tab polls status once per second and shows a download progress bar
+with bytes received and total/percentage when the image Content-Length is known.
+For chunked/unknown-length images, the bar is indeterminate and shows the byte
+count. Progress counts bytes successfully streamed into the inactive OTA slot;
+100% means transfer complete, not successful verification or installation.
+Separate status text shows verification, failure and reboot. Failed updates retain
+the last byte count, a new update resets it, and a connection error marks the
+shown progress as stale. Local file upload keeps its existing upload status.
+
+`GET /api/firmware` adds `download_progress` with `started`, `received_bytes`,
+`total_bytes` (zero when unknown), and `percent` (null when unknown). State is
+in-memory, bounded and read under the existing firmware mutex. No persistent
+writes or extra network download requests are made for progress reporting.
+
+### Browser uploads rejected with HTTP 431
+
+`httpd_parse: request URI/header too long` followed by HTTP 431 means the server
+rejected request headers before the upload handler ran. IDF 5.4.1 checks this in
+`components/esp_http_server/src/httpd_parse.c::parse_block`. The former 512-byte
+`CONFIG_HTTPD_MAX_REQ_HDR_LEN` budget was too small for browser-generated metadata
+plus `X-Firmware-SHA256`. The budget is now a fixed 4096 bytes, enforced by the
+configuration/package gate. The URI, upload body/partition bounds, SHA-256 and
+ESP-IDF image validation remain unchanged; headers over 4 KiB still receive 431.
+This server receive limit is separate from the outgoing OTA request TX buffer.
+
+An image containing this fix does not change the server currently running on the
+device. To bootstrap from an affected image, use an independently authorized
+remote OTA or a minimal-header upload client. The following command **installs
+firmware and reboots**; it is not a read-only diagnostic. Only run it when that
+hardware action is intended, with a validated app-only image and the correct
+existing device hostname (or bracketed routable IPv6 address):
+
+```sh
+image=.local-build/package/espyspa-matter.bin
+sha=$(sha256sum "$image" | cut -d ' ' -f 1)
+curl --noproxy '*' --http1.1 --fail-with-body \
+  -H 'Expect:' -H 'Content-Type: application/octet-stream' \
+  -H "X-Firmware-SHA256: $sha" \
+  --data-binary "@$image" 'http://DEVICE_HOST/api/firmware/upload'
+```
+
+This keeps normal upload validation; do not bypass the SHA header or upload
+OTA metadata/bootloader images. Browser headers cannot all be removed by page
+JavaScript. After separately authorized installation, validate a browser upload
+with typical headers, confirm oversized headers are still rejected before any
+OTA write, and verify pairing/Thread credentials remain intact. No upload or
+hardware operation was performed when making this fix.

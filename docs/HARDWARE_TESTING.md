@@ -169,3 +169,27 @@ spaces. Duplicate and unknown keys, unmatched quotes, multiline values, shell
 commands, expansion (`$` or backticks), and backslash escapes are unsupported.
 No variable substitution occurs. The existing SSH-key `~` expansion still
 applies; use absolute paths elsewhere. The file is bounded to 65,536 characters.
+
+Thread OTA DNS acceptance is a separate hardware gate. Read the
+[DNS acceptance checklist](OTA.md#thread-dns-hardware-acceptance) and
+[ADR 0005](decisions/0005-thread-ota-dns.md). Collect a read-only GET of
+`/api/firmware` separately alongside toolkit captures for DNS lookup observations
+and serial results; these reads do not initiate DNS probes or an update.
+A working Thread role does not prove lwIP hostname
+resolution or NAT64 translation. Host resolver mocks and configuration tests do
+not establish live HTTPS or OTA success. Updates, network-failure injection and
+border-router changes require their own authorization.
+
+## ProductURL acceptance
+
+The recent application mDNS/web-SRP implementation has been removed. Use the
+[endpoint-0 Matter ProductURL](DIAGNOSTICS.md#matter-producturl) or the existing
+direct IPv6 serial report. Host mocks do not prove the new attribute is exposed
+on a live node; a separately authorized target build and installation are needed.
+With an existing controller/fabric, read ProductURL and verify it equals HTTP
+`product_url` diagnostics and opens the unified port-80 page. Confirm other Basic
+Information values, fabrics and endpoint IDs are unchanged. In an authorized
+isolated setup, verify address replacement updates the value, Thread loss clears
+it, reconnection restores it, and invalid/scoped-only addresses never produce a
+URL. Controller UI visibility/caching is a separate observation from attribute
+reads. Do not commission, reset or disrupt the operational network for this check.

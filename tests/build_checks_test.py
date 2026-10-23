@@ -62,9 +62,63 @@ class BuildChecks(unittest.TestCase):
                     self.check()
         self.config.write_text(baseline)
 
+    def test_dns_defaults_and_generated_config_gate(self):
+        defaults = (Path(__file__).parents[1] / 'sdkconfig.defaults').read_text().splitlines()
+        required = ('CONFIG_OPENTHREAD_DNS_CLIENT', 'CONFIG_OPENTHREAD_SRP_CLIENT',
+                    'CONFIG_OPENTHREAD_DNS64_CLIENT',
+                    'CONFIG_LWIP_HOOK_NETCONN_EXT_RESOLVE_CUSTOM',
+                    'CONFIG_LWIP_HOOK_DNS_EXT_RESOLVE_NONE',
+                    'CONFIG_LWIP_IPV4', 'CONFIG_LWIP_IPV6',
+                    'CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS',
+                    'CONFIG_ESP_TLS_INSECURE', 'CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY')
+        for key in required:
+            with self.subTest(config=key):
+                self.assertIn(f'{key}={checks.EXPECTED_CONFIG[key]}', defaults)
+        # A generated configuration predating the bridge must fail packaging.
+        self.config.write_text(self.config.read_text().replace(
+            'CONFIG_LWIP_HOOK_NETCONN_EXT_RESOLVE_CUSTOM=y',
+            '# CONFIG_LWIP_HOOK_NETCONN_EXT_RESOLVE_CUSTOM is not set'))
+        with self.assertRaisesRegex(ValueError, 'NETCONN_EXT_RESOLVE_CUSTOM'):
+            self.check()
+
     def test_missing_ota_file(self):
         (self.build / 'ota_data_initial.bin').unlink()
         with self.assertRaisesRegex(ValueError, 'Missing'):
+            self.check()
+
+    def test_browser_upload_header_budget(self):
+        # Representative browser POST metadata, without a firmware body or
+        # real device address/credentials. This reproduces the old 512-byte
+        # budget failure while leaving room for browser/version variation.
+        headers = {
+            'Host': 'unit-test.local',
+            'Connection': 'keep-alive',
+            'Content-Length': '1967312',
+            'Content-Type': 'application/octet-stream',
+            'X-Firmware-SHA256': 'a' * 64,
+            'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+                          '(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'en-AU,en-GB;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate',
+            'Origin': 'http://unit-test.local',
+            'Referer': 'http://unit-test.local/',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+        }
+        wire = ('POST /api/firmware/upload HTTP/1.1\r\n' +
+                ''.join(f'{key}: {value}\r\n' for key, value in headers.items()) + '\r\n').encode('ascii')
+        limit = int(checks.EXPECTED_CONFIG['CONFIG_HTTPD_MAX_REQ_HDR_LEN'])
+        self.assertGreater(len(wire), 512)
+        self.assertLess(len(wire) + 1024, limit)
+        self.assertLessEqual(limit, 4096)
+        defaults = (Path(__file__).parents[1] / 'sdkconfig.defaults').read_text().splitlines()
+        self.assertIn(f'CONFIG_HTTPD_MAX_REQ_HDR_LEN={limit}', defaults)
+        # An old generated configuration must be rejected before packaging.
+        self.config.write_text(self.config.read_text().replace(
+            f'CONFIG_HTTPD_MAX_REQ_HDR_LEN={limit}', 'CONFIG_HTTPD_MAX_REQ_HDR_LEN=512'))
+        with self.assertRaisesRegex(ValueError, 'HTTPD_MAX_REQ_HDR_LEN'):
             self.check()
 
     def test_missing_ota_metadata(self):

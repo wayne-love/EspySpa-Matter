@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "product_url.hpp"
 #include "esp_http_server.h"
 #include "esp_system.h"
 #include "esp_log.h"
@@ -62,9 +63,11 @@ void log_thread_addresses() {
 }
 void network_log_worker(void *) {
     TickType_t last = xTaskGetTickCount();
+    unsigned reports = 0;
     for (;;) {
-        log_thread_addresses();
-        vTaskDelayUntil(&last, pdMS_TO_TICKS(60000));
+        product_url_refresh();
+        if (reports++ % 12 == 0) log_thread_addresses();
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(5000));
     }
 }
 const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>EspySpa</title>
@@ -72,13 +75,24 @@ const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8">
 <h1>EspySpa</h1><nav><button id="diag-tab">Diagnostics</button><button id="config-tab">Configuration</button><button id="firmware-tab">Firmware</button></nav>
 <div id="diag-panel"><p>Read-only interface. State is reported by the spa controller. Requests are confirmed by readback.</p><p id="status">Connecting…</p><button id="download">Download snapshot</button><pre id="data"></pre></div>
 <div id="config-panel" hidden><h2>Configuration</h2><label for="poll">Spa state polling interval (15–300 seconds)</label><input id="poll" type="number" min="15" max="300" step="1"><button id="save-poll">Save</button><p id="config-status"></p></div>
-<div id="firmware-panel" hidden><h2>Firmware update</h2><p id="fw-banner"></p><section><p>Firmware update and reboot controls are available from this page. Use only trusted ESP32-C6 release images.</p><div>Running: <strong id="running">Loading…</strong></div><div>Partition: <span id="partition">—</span></div><label>Update channel <select id="channel"><option value="release">Release</option><option value="development">Development</option></select></label><div>Alternate image: <span id="alternate">—</span></div><div>Update status: <span id="fw-state">—</span></div><p><button id="update">Check and install update</button><button id="alt">Reboot into alternate image</button><button id="reboot">Reboot current image</button></p></section><section><h3>Install a firmware file</h3><p>Select the app-only <code>espyspa-matter.bin</code> image from a successful ESP32-C6 release artifact. Do not upload a merged full-flash image. It is written to the inactive OTA slot and checked by ESP-IDF before reboot.</p><input id="firmware-file" type="file" accept=".bin,application/octet-stream"><button id="upload">Upload and install</button><p id="upload-status"></p></section></div>
+<div id="firmware-panel" hidden><h2>Firmware update</h2><p id="fw-banner"></p><section><p>Firmware update and reboot controls are available from this page. Use only trusted ESP32-C6 release images.</p><div>Running: <strong id="running">Loading…</strong></div><div>Partition: <span id="partition">—</span></div><label>Update channel <select id="channel"><option value="release">Release</option><option value="development">Development</option></select></label><div>Alternate image: <span id="alternate">—</span></div><div>Update status: <span id="fw-state">—</span></div><div id="fw-download" hidden><label for="fw-progress">Firmware download</label><progress id="fw-progress" max="100" style="width:100%"></progress><p id="fw-progress-text" role="status" aria-live="polite"></p></div><p><button id="update">Check and install update</button><button id="alt">Reboot into alternate image</button><button id="reboot">Reboot current image</button></p></section><section><h3>Install a firmware file</h3><p>Select the app-only <code>espyspa-matter.bin</code> image from a successful ESP32-C6 release artifact. Do not upload a merged full-flash image. It is written to the inactive OTA slot and checked by ESP-IDF before reboot.</p><input id="firmware-file" type="file" accept=".bin,application/octet-stream"><button id="upload">Upload and install</button><p id="upload-status"></p></section></div>
 <script>
 let timer,latest;const el=id=>document.getElementById(id);let panels=['diag','config','firmware'];function show(name){for(const p of panels)el(p+'-panel').hidden=p!==name;}
 async function refresh(){try{const r=await fetch('/api/diagnostics',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);latest=await r.json();el('data').textContent=JSON.stringify(latest,null,2);el('status').textContent=latest.fresh?'Live spa state':'STALE / unavailable — see errors';}catch(e){el('status').textContent='Connection failed: '+e.message;}}
 async function loadConfig(){try{const r=await fetch('/api/config',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const c=await r.json();el('poll').value=c.poll_seconds;el('config-status').textContent='Saved interval: '+c.poll_seconds+' seconds';}catch(e){el('config-status').textContent=e.message;}}
 async function action(path,body){const headers={},options={method:'POST',headers};if(body!==undefined){headers['Content-Type']='application/json';options.body=JSON.stringify(body);}const r=await fetch(path,options);if(!r.ok)throw Error((await r.text())||('HTTP '+r.status));return r;}
-async function refreshFirmware(){try{const r=await fetch('/api/firmware',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const f=await r.json();el('running').textContent=f.version+' ('+f.image_channel+', '+f.commit+')';el('partition').textContent=f.partition;el('channel').value=f.update_channel;el('alternate').textContent=f.alternate?f.alternate.version+' ('+f.alternate.partition+')':'No valid alternate image';el('fw-state').textContent=f.update_state+(f.update_target_version?' → '+f.update_target_version:'')+(f.update_error?' — '+f.update_error:'');el('fw-banner').textContent=f.image_channel==='development'?'Development firmware':'Release firmware';el('fw-banner').className=f.image_channel==='development'?'warn':'';for(const id of ['update','upload','channel','alt','reboot'])el(id).disabled=f.busy||(id==='alt'&&!f.alternate);}catch(e){el('fw-state').textContent='Firmware status failed: '+e.message;}}
+function renderDownloadProgress(f){
+ const p=f.download_progress,box=el('fw-download'),bar=el('fw-progress'),text=el('fw-progress-text');
+ box.hidden=!p||!p.started;
+ if(box.hidden)return;
+ const received=Number(p.received_bytes)||0,total=Number(p.total_bytes)||0;
+ if(total>0){const percent=Math.min(100,Math.max(0,Math.floor(received*100/total)));bar.value=percent;text.textContent=percent+'% — '+received.toLocaleString()+' / '+total.toLocaleString()+' bytes';}
+ else{bar.removeAttribute('value');text.textContent=received.toLocaleString()+' bytes downloaded — total size unknown';}
+ if(f.update_state==='verifying')text.textContent+=' — Verifying image…';
+ if(f.update_state==='rebooting')text.textContent+=' — Verified; rebooting…';
+ if(f.update_state==='failed')text.textContent+=' — Download/update failed; see update status';
+}
+async function refreshFirmware(){try{const r=await fetch('/api/firmware',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const f=await r.json();renderDownloadProgress(f);el('running').textContent=f.version+' ('+f.image_channel+', '+f.commit+')';el('partition').textContent=f.partition;el('channel').value=f.update_channel;el('alternate').textContent=f.alternate?f.alternate.version+' ('+f.alternate.partition+')':'No valid alternate image';el('fw-state').textContent=f.update_state+(f.update_target_version?' → '+f.update_target_version:'')+(f.update_error?' — '+f.update_error:'');el('fw-banner').textContent=f.image_channel==='development'?'Development firmware':'Release firmware';el('fw-banner').className=f.image_channel==='development'?'warn':'';for(const id of ['update','upload','channel','alt','reboot'])el(id).disabled=f.busy||(id==='alt'&&!f.alternate);}catch(e){el('fw-state').textContent='Firmware status failed: '+e.message;el('fw-progress-text').textContent='Connection unavailable; last reported progress may be stale';}}
 el('diag-tab').onclick=()=>show('diag');el('config-tab').onclick=()=>{show('config');loadConfig();};el('firmware-tab').onclick=()=>{show('firmware');refreshFirmware();};
 el('save-poll').onclick=async()=>{const n=Number(el('poll').value);if(!Number.isInteger(n)||n<15||n>300){el('config-status').textContent='Enter 15 to 300 whole seconds';return;}try{const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({poll_seconds:n})});if(!r.ok)throw Error(await r.text());await loadConfig();}catch(e){el('config-status').textContent=e.message;}};
 el('download').onclick=()=>{if(!latest)return;const a=document.createElement('a');const u=URL.createObjectURL(new Blob([JSON.stringify(latest,null,2)],{type:'application/json'}));a.href=u;a.download='spa-diagnostics.json';a.click();URL.revokeObjectURL(u);};
@@ -88,7 +102,7 @@ el('alt').onclick=async()=>{if(!confirm('Reboot into the alternate firmware imag
 el('reboot').onclick=async()=>{if(!confirm('Reboot EspySpa?'))return;try{await action('/api/reboot');}catch(e){alert(e.message);await refreshFirmware();}};
 el('upload').onclick=async()=>{const file=el('firmware-file').files[0];if(!file){el('upload-status').textContent='Choose espyspa-matter.bin first';return;}if(!file.name.toLowerCase().endsWith('.bin')){el('upload-status').textContent='Choose the app-only .bin image';return;}if(!confirm('Install '+file.name+' ('+file.size+' bytes) and reboot? Use only the app-only espyspa-matter.bin from a trusted ESP32-C6 release artifact.'))return;el('upload-status').textContent='Checking file…';try{const bytes=await file.arrayBuffer();const hash=await sha256(bytes);el('upload-status').textContent='Uploading and verifying SHA-256…';const r=await fetch('/api/firmware/upload',{method:'POST',headers:{'Content-Type':'application/octet-stream','X-Firmware-SHA256':hash},body:bytes});if(!r.ok)throw Error((await r.text())||('HTTP '+r.status));el('upload-status').textContent='Image accepted. Device is rebooting.';}catch(e){el('upload-status').textContent='Upload failed: '+e.message;await refreshFirmware();}};
 async function sha256(buffer){const k=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2],ro=(x,n)=>(x>>>n)|(x<<(32-n)),m=new Uint8Array(buffer),bit=m.length*8,pad=((m.length+9+63)>>6)<<6,d=new Uint8Array(pad);d.set(m);d[m.length]=128;const dv=new DataView(d.buffer);dv.setUint32(pad-4,bit>>>0);dv.setUint32(pad-8,Math.floor(bit/4294967296));let h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19],w=new Uint32Array(64);for(let o=0;o<pad;o+=64){for(let i=0;i<16;i++)w[i]=dv.getUint32(o+i*4);for(let i=16;i<64;i++){const a=w[i-15],b=w[i-2],s0=ro(a,7)^ro(a,18)^(a>>>3),s1=ro(b,17)^ro(b,19)^(b>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)>>>0;}let [a,b,c,e,f,g,q,z]=h;for(let i=0;i<64;i++){const s1=ro(f,6)^ro(f,11)^ro(f,25),ch=(f&g)^(~f&q),t1=(z+s1+ch+k[i]+w[i])>>>0,s0=ro(a,2)^ro(a,13)^ro(a,22),maj=(a&b)^(a&c)^(b&c),t2=(s0+maj)>>>0;z=q;q=g;g=f;f=(e+t1)>>>0;e=c;c=b;b=a;a=(t1+t2)>>>0;}h=[(h[0]+a)>>>0,(h[1]+b)>>>0,(h[2]+c)>>>0,(h[3]+e)>>>0,(h[4]+f)>>>0,(h[5]+g)>>>0,(h[6]+q)>>>0,(h[7]+z)>>>0];}return h.map(x=>x.toString(16).padStart(8,'0')).join('');}
-refresh();timer=setInterval(refresh,5000);setInterval(refreshFirmware,3000);</script></html>)HTML";
+refresh();timer=setInterval(refresh,5000);setInterval(refreshFirmware,1000);</script></html>)HTML";
 esp_err_t config_get(httpd_req_t *req) {
     char body[64];
     snprintf(body, sizeof(body), "{\"poll_seconds\":%lu}", static_cast<unsigned long>(spa_poll_interval_seconds()));
@@ -132,6 +146,7 @@ esp_err_t dashboard(httpd_req_t *req) {
 esp_err_t diagnostic(httpd_req_t *req) {
     auto s = snapshot(); const auto now = now_ms();
     cJSON *root = cJSON_CreateObject(); if (!root) return ESP_ERR_NO_MEM;
+    cJSON_AddStringToObject(root, "product_url", product_url_snapshot().c_str());
     cJSON_AddStringToObject(root, "firmware", esp_app_get_description()->version);
     cJSON_AddNumberToObject(root, "uptime_ms", now);
     cJSON_AddNumberToObject(root, "reset_reason", esp_reset_reason());
