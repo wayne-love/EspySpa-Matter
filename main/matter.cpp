@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "product_url.hpp"
 #include <esp_matter.h>
 #include "control_policy.hpp"
 #include "serial_log.hpp"
@@ -153,6 +154,7 @@ void app_matter_event(const chip::DeviceLayer::ChipDeviceEvent *e, intptr_t) {
     default: break;
     }
     chip::DeviceLayer::PlatformMgr().ScheduleWork(refresh_identity, 0);
+    product_url_refresh();
 }
 esp_err_t identify(identification::callback_type_t, uint16_t, uint8_t, uint8_t, void *) { return ESP_OK; }
 esp_err_t changed(attribute::callback_type_t type, uint16_t ep, uint32_t cluster, uint32_t attr,
@@ -301,6 +303,13 @@ void matter_start() {
     node::config_t cfg;
     std::strcpy(cfg.root_node.basic_information.node_label, "eSpa");
     auto node = node::create(&cfg, changed, identify); configASSERT(node); matter_node = node;
+    auto root = endpoint::get(0);
+    auto basic = cluster::get(root, BasicInformation::Id);
+    configASSERT(basic);
+    if (!attribute::get(basic, BasicInformation::Attributes::ProductURL::Id)) {
+        char empty[] = "";
+        configASSERT(cluster::basic_information::attribute::create_product_url(basic, empty, 0));
+    }
     endpoint::thermostat::config_t tc;
     tc.thermostat.local_temperature = nullptr;
     tc.thermostat.control_sequence_of_operation = 2;

@@ -1,4 +1,7 @@
 #include "app.hpp"
+#include "ota_http.hpp"
+#include "thread_dns.hpp"
+#include "firmware_progress.hpp"
 
 #include "cJSON.h"
 #include "esp_app_desc.h"
@@ -34,13 +37,13 @@ constexpr const char *NVS_NAMESPACE = "firmware";
 constexpr const char *NVS_CHANNEL_KEY = "channel";
 constexpr size_t MANIFEST_LIMIT = 4096;
 constexpr uint32_t VALIDATION_DELAY_MS = 30000;
-constexpr unsigned MAX_HTTP_REDIRECTS = 5;
 
 SemaphoreHandle_t state_mutex;
 bool update_busy = false;
 std::string update_state = "idle";
 std::string update_error;
 std::string update_target_version;
+FirmwareDownloadProgress download_progress;
 
 struct UploadState {
     esp_ota_handle_t handle = 0;
@@ -105,39 +108,18 @@ const char *manifest_url_for(const std::string &channel) {
     return channel == "release" ? CONFIG_SPA_RELEASE_MANIFEST_URL : CONFIG_SPA_DEVELOPMENT_MANIFEST_URL;
 }
 
-esp_err_t open_stream_follow_redirects(esp_http_client_handle_t client, int64_t &content_length) {
-    for (unsigned redirects = 0; redirects <= MAX_HTTP_REDIRECTS; ++redirects) {
-        esp_err_t err = esp_http_client_open(client, 0);
-        if (err != ESP_OK) return err;
-
-        content_length = esp_http_client_fetch_headers(client);
-        const int status = esp_http_client_get_status_code(client);
-        if (status >= 200 && status < 300) return ESP_OK;
-
-        if (status < 300 || status >= 400 || redirects == MAX_HTTP_REDIRECTS) {
-            esp_http_client_close(client);
-            return ESP_ERR_INVALID_RESPONSE;
-        }
-
-        err = esp_http_client_set_redirection(client);
-        esp_http_client_close(client);
-        if (err != ESP_OK) return err;
-    }
-    return ESP_ERR_INVALID_RESPONSE;
-}
-
 esp_err_t fetch_text(const char *url, std::string &body) {
     esp_http_client_config_t config{};
     config.url = url;
     config.timeout_ms = 15000;
     config.crt_bundle_attach = esp_crt_bundle_attach;
-    config.max_redirection_count = 5;
+    ota_http_configure(config);
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return ESP_ERR_NO_MEM;
 
     int64_t content_length = -1;
-    esp_err_t err = open_stream_follow_redirects(client, content_length);
+    esp_err_t err = ota_http_open_stream(client, content_length, "manifest");
     if (err != ESP_OK) {
         esp_http_client_cleanup(client);
         return err;
@@ -216,6 +198,9 @@ std::string digest_hex(const unsigned char digest[32]) {
 }
 
 esp_err_t download_to_inactive_slot(const Manifest &manifest) {
+    lock_state();
+    download_progress = {true, 0, 0};
+    unlock_state();
     const esp_partition_t *running = esp_ota_get_running_partition();
     const esp_partition_t *target = esp_ota_get_next_update_partition(running);
     if (!target || target == running) return ESP_ERR_NOT_FOUND;
@@ -224,22 +209,26 @@ esp_err_t download_to_inactive_slot(const Manifest &manifest) {
     config.url = manifest.url.c_str();
     config.timeout_ms = 30000;
     config.crt_bundle_attach = esp_crt_bundle_attach;
-    config.max_redirection_count = 5;
+    ota_http_configure(config);
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     if (!client) return ESP_ERR_NO_MEM;
 
     int64_t length = -1;
-    esp_err_t err = open_stream_follow_redirects(client, length);
+    esp_err_t err = ota_http_open_stream(client, length, "image");
     if (err != ESP_OK) {
         esp_http_client_cleanup(client);
         return err;
     }
-    if (length == 0 || (length > 0 && length > static_cast<int64_t>(target->size))) {
+    if (length > 0 && length > static_cast<int64_t>(target->size)) {
         esp_http_client_close(client);
         esp_http_client_cleanup(client);
         return ESP_ERR_INVALID_SIZE;
     }
+
+    lock_state();
+    download_progress.total_bytes = length > 0 ? static_cast<uint32_t>(length) : 0;
+    unlock_state();
 
     esp_ota_handle_t ota_handle = 0;
     err = esp_ota_begin(target, OTA_SIZE_UNKNOWN, &ota_handle);
@@ -278,8 +267,13 @@ esp_err_t download_to_inactive_slot(const Manifest &manifest) {
             err = ESP_FAIL;
             break;
         }
+        lock_state();
+        download_progress.received_bytes = static_cast<uint32_t>(written);
+        unlock_state();
     }
 
+    if (err == ESP_OK && length > 0 && written != static_cast<size_t>(length)) err = ESP_ERR_INVALID_SIZE;
+    if (err == ESP_OK) set_state("verifying");
     unsigned char digest[32]{};
     if (err == ESP_OK && mbedtls_sha256_finish(&sha, digest) != 0) err = ESP_FAIL;
     mbedtls_sha256_free(&sha);
@@ -446,6 +440,7 @@ esp_err_t firmware_start_update() {
     }
     update_busy = true;
     update_state = "queued";
+    download_progress = {};
     update_error.clear();
     update_target_version.clear();
     unlock_state();
@@ -476,6 +471,7 @@ esp_err_t firmware_upload_begin(size_t content_length, const std::string &expect
     }
     update_busy = true;
     update_state = "uploading";
+    download_progress = {};
     update_error.clear();
     update_target_version.clear();
     unlock_state();
@@ -593,6 +589,7 @@ std::string firmware_info_json() {
     std::string current_error = update_error;
     std::string current_target = update_target_version;
     bool busy = update_busy;
+    const auto progress = download_progress;
     unlock_state();
 
     const esp_app_desc_t *app = esp_app_get_description();
@@ -604,9 +601,11 @@ std::string firmware_info_json() {
     json += ",\"partition\":" + json_escape(running ? running->label : "unknown");
     json += ",\"ota_state\":" + std::to_string(static_cast<int>(state));
     json += ",\"busy\":" + std::string(busy ? "true" : "false");
+    json += ",\"download_progress\":" + progress.json();
     json += ",\"update_state\":" + json_escape(current_state);
     json += ",\"update_error\":" + json_escape(current_error);
     json += ",\"update_target_version\":" + json_escape(current_target);
+    json += ",\"dns\":" + thread_dns_json();
     if (other_valid) {
         json += ",\"alternate\":{\"partition\":" + json_escape(other->label);
         json += ",\"version\":" + json_escape(other_desc.version) + "}";

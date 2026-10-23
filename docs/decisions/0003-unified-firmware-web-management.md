@@ -32,3 +32,31 @@ The existing diagnostics and configuration URLs remain on port 80. Firmware API 
 ## Links
 
 - [OTA firmware and recovery documentation](../OTA.md)
+
+## Download progress
+
+The firmware status API adds a bounded in-memory download snapshot protected by
+its existing mutex. The firmware tab polls once per second and uses a native
+accessible progress element, with a byte count and percentage for known image
+lengths and an indeterminate bar otherwise. This reuses the existing status
+endpoint rather than adding streaming connections or persistent progress writes.
+Byte counts follow successful inactive-slot writes. Transfer completion remains
+separate from SHA/image verification and reboot; failures retain progress and
+new updates/uploads clear it. Chunked images retain partition-size and SHA bounds.
+Host tests cover snapshot JSON and the actual browser renderer with a mocked DOM;
+real browser polling during Thread downloads remains hardware acceptance.
+
+## Browser upload header budget
+
+Supplied device logs showed HTTP 431 before the upload handler. In pinned IDF
+5.4.1, `esp_http_server/src/httpd_parse.c::parse_block` produces this response
+when its request-header buffer is exhausted. Increase the configured receive
+header budget from 512 to a fixed 4096 bytes for browser metadata plus the SHA
+header, and require it in the generated-config/package gate. Keep all existing
+image validation and streaming limits. Unbounded header growth and trying to
+strip browser-controlled headers in JavaScript are rejected. A representative
+browser request regression exceeds the old limit, fits the new limit with
+headroom, and proves the gate rejects an old generated configuration. This host
+budget check does not run the SDK parser or prove a real browser upload.
+See [OTA troubleshooting](../OTA.md#browser-uploads-rejected-with-http-431) for
+bootstrap installation from an affected running server and hardware acceptance.

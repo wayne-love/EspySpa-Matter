@@ -13,6 +13,9 @@ __pycache__/
 .local-build/
 .host-control-tests
 .host-log-tests
+.host-dns-tests
 .hardware.local.json
 hardware-captures/
 .host-alt-boot-tests
+.host-progress-tests
+.host-product-url-tests
