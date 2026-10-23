@@ -64,7 +64,7 @@ The spa controls are native functional endpoints in one eSpa node, not bridged a
 ## Open diagnostics without a serial cable
 
 1. Find the ESP's routable Thread **OMR IPv6 address** in your border router or Thread integration. A controller's internal Matter node ID is not an IP address.
-2. On a computer with an IPv6 route to that Thread network, open `http://[DEVICE_IPV6]:8080/`, replacing the placeholder with the address and retaining the brackets.
+2. On a computer with an IPv6 route to that Thread network, open `http://[DEVICE_IPV6]/`, replacing the placeholder with the address and retaining the brackets.
 3. The read-only page refreshes every five seconds. It needs no token, login or enable switch on the trusted network.
 
 Check Thread role (2 child, 3 router or 4 leader), Matter fabric count, and spa state freshness. An online Matter device with stale spa state indicates a separate UART/spa issue. See [DIAGNOSTICS.md](DIAGNOSTICS.md) for the snapshot fields. Diagnostics require Thread connectivity and cannot diagnose a completely detached device remotely.
@@ -77,7 +77,7 @@ Check Thread role (2 child, 3 router or 4 leader), Matter fabric count, and spa 
 | Pairing fails at Thread setup | Phone's Thread credentials, border router coverage, IPv6/local discovery and network isolation. |
 | Test-device warning or rejection | Development attestation support in the controller; the default code does not make the device certified. |
 | Already paired to another controller | Use that controller's sharing/add-to-another-ecosystem flow and its newly generated code. The default code does not open a new commissioning window. |
-| Matter works but web page does not | Use a routable OMR address, IPv6 connectivity and TCP port 8080. A link-local `fe80::` address is not a substitute for routed access. |
+| Matter works but web page does not | Use a routable OMR address, IPv6 connectivity and TCP port 80. A link-local `fe80::` address is not a substitute for routed access. |
 | Controls fail or temperature unavailable | Check diagnostic freshness, polling errors, UART pins/levels and installed pump capabilities. |
 
 Normal firmware updates preserve pairing when NVS is retained. For an aborted pairing, unavailable old controller or lost Thread network, press and release **GP button (GPIO21) five times within five seconds** while firmware is running. The **fifth release triggers the reset**; no sixth press is required. When the LED flashes purple, leave GP button released. The connector clears its Matter/Thread configuration and reboots automatically ready for a new pairing. Firmware is retained. See [STATUS_LED.md](STATUS_LED.md#factory-reset) for timing and recovery details. There is no network factory-reset API. This deliberately removes every saved pairing; do not use it for a normal firmware update.
