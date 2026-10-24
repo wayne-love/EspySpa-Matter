@@ -14,7 +14,7 @@ Evidence is ESPySpa commit `ca206919b4df5886a09e8c91fe82d01df1f5488a`: `SpaInter
 
 | Control | Native readback | Native write | Matter representation |
 |---|---|---|---|
-| Temperature | R5+15, R6+8 | W40:50..410, steps of 2 | Existing thermostat; Heat only |
+| Temperature | R5+15, R6+8 | W40:50..410 tenths, even values (0.2 °C steps) | Existing thermostat; Heat only |
 | Light | R5+14 | W14 toggle, based on cached state | Permanent OnOff light |
 | Each installed pump | R5+18..22; RG+1..5 readiness; RG+7..11 installation/modes | S22..S26:advertised native mode | One native Fan endpoint with speed slider, OnOff and Mode Select |
 | Blower mode | RC+10: 0 Variable, 1 Ramp, 2 Off | S28:0..2 | Permanent Fan endpoint with slider, OnOff and Mode Select |
@@ -23,6 +23,12 @@ Evidence is ESPySpa commit `ca206919b4df5886a09e8c91fe82d01df1f5488a`: `SpaInter
 Pump Mode Select uses native IDs 0 Off, 1 On, 2 High, 3 Low, 4 Auto, and advertises only the modes reported for that pump. **The production ESPySpa command paths are authoritative:** `pump_speed` translates UI Low to native 3 and High to native 2; `pump_state` chooses native 2 for a two-speed pump and native 1 for a single-speed pump. Its `SpaUtils` labels conflict with those tested command paths, so this firmware follows the command encoders rather than those labels.
 
 Blower Matter mode IDs are 2 Off, 1 Ramp and 11..15 Variable 1..5. These are presentation IDs. Typed native requests map them to separate blower mode and variable-level operations; they are never sent directly to SpaNET as pump modes.
+
+The thermostat setpoint is 5.0–41.0 °C in 0.2 °C increments. Matter writes
+must be divisible by 20 in hundredths of a degree; SpaNET RF readback is also
+rejected if its target is off that 0.2 °C grid. Matter exposes setpoint limits
+but no attribute for the controller UI's step size, so Apple Home may choose
+its own displayed adjustment increment.
 
 Fan Control supplies a 0–100% speed setting and discrete SpeedSetting/SpeedMax, allowing a slider or stepped speed UI on controllers that support Matter fans. For a two-speed pump, 0 is Off, 1–50% selects Low (native 3), and 51–100% selects High (native 2). A single-speed pump snaps nonzero settings to its advertised On mode. Only advertised manual modes are mapped; Auto is selected separately through fan Auto or Mode Select. Slider percentages snap to the supported discrete levels on RF readback; they are not continuous motor-speed commands. The fallback ordering for an unusual mask containing all three manual values is Low (3), On (1), High (2).
 

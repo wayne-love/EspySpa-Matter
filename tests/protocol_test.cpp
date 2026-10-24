@@ -49,6 +49,9 @@ int main(int argc, char **argv) {
     auto bad_setpoint = replace(",380,", ",oops,");
     CHECK(!spa::parse(bad_setpoint, s, error));
     CHECK(error == "R6 field[8] is not a valid integer");
+    auto off_step_setpoint = replace(",380,", ",381,");
+    CHECK(!spa::parse(off_step_setpoint, s, error));
+    CHECK(error == "R6 field[8] setpoint is not in 0.2 C increments");
     invalid(replace(",380,", ",oops,")); invalid(replace(",380,", ",380x,"));
     invalid(replace(",366,0,28,", ",9999,0,28,"));
     invalid(replace("1-1-014", "1-1-01x"));

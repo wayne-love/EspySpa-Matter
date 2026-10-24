@@ -53,6 +53,10 @@ bool parse(std::string_view data, State &out, std::string &error) {
     State s; int v;
     if (!get("R5", 15, s.water_tenths, 0, 600)) return false;
     if (!get("R6", 8, s.setpoint_tenths, 50, 410)) return false;
+    if (s.setpoint_tenths % 2 != 0) {
+        error = "R6 field[8] setpoint is not in 0.2 C increments";
+        return false;
+    }
     if (!get("R5", 14, v, 0, 1)) return false;
     s.light = v;
     if (!get("R5", 12, v, 0, 1)) return false;
