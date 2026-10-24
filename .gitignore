@@ -19,3 +19,4 @@ hardware-captures/
 .host-alt-boot-tests
 .host-progress-tests
 .host-product-url-tests
+.host-uart-trace-tests
