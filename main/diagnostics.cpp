@@ -73,7 +73,7 @@ void network_log_worker(void *) {
 const char page[] = R"HTML(<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>EspySpa</title>
 <style>body{font:16px system-ui;max-width:1000px;margin:2rem auto;padding:0 1rem;background:#101c26;color:#e6f1f5}input,button,select{font:inherit;padding:.6rem;margin:.25rem .25rem .25rem 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#1b2b38;padding:1rem}label{display:block;margin:1rem 0}section{background:#162633;padding:1rem;margin:1rem 0;border-radius:.5rem}.warn{color:#ffd27a;font-weight:700}</style>
 <h1>EspySpa</h1><nav><button id="diag-tab">Diagnostics</button><button id="config-tab">Configuration</button><button id="firmware-tab">Firmware</button></nav>
-<div id="diag-panel"><p>Read-only interface. State is reported by the spa controller. Requests are confirmed by readback.</p><p id="status">Connecting…</p><button id="download">Download snapshot</button><pre id="data"></pre></div>
+<div id="diag-panel"><p>Read-only interface. Successful command acknowledgements update cached control state immediately; the next RF poll confirms it. State source identifies the latest evidence.</p><p id="status">Connecting…</p><button id="download">Download snapshot</button><pre id="data"></pre></div>
 <div id="config-panel" hidden><h2>Configuration</h2><label for="poll">Spa state polling interval (15–300 seconds)</label><input id="poll" type="number" min="15" max="300" step="1"><button id="save-poll">Save</button><p id="config-status"></p></div>
 <div id="firmware-panel" hidden><h2>Firmware update</h2><p id="fw-banner"></p><section><p>Firmware update and reboot controls are available from this page. Use only trusted ESP32-C6 release images.</p><div>Running: <strong id="running">Loading…</strong></div><div>Partition: <span id="partition">—</span></div><label>Update channel <select id="channel"><option value="release">Release</option><option value="development">Development</option></select></label><div>Alternate image: <span id="alternate">—</span></div><div>Update status: <span id="fw-state">—</span></div><div id="fw-download" hidden><label for="fw-progress">Firmware download</label><progress id="fw-progress" max="100" style="width:100%"></progress><p id="fw-progress-text" role="status" aria-live="polite"></p></div><p><button id="update">Check and install update</button><button id="alt">Reboot into alternate image</button><button id="reboot">Reboot current image</button></p></section><section><h3>Install a firmware file</h3><p>Select the app-only <code>espyspa-matter.bin</code> image from a successful ESP32-C6 release artifact. Do not upload a merged full-flash image. It is written to the inactive OTA slot and checked by ESP-IDF before reboot.</p><input id="firmware-file" type="file" accept=".bin,application/octet-stream"><button id="upload">Upload and install</button><p id="upload-status"></p></section></div>
 <script>
@@ -156,6 +156,7 @@ esp_err_t diagnostic(httpd_req_t *req) {
     cJSON_AddBoolToObject(root, "fresh", s.valid && now - s.last_valid_ms <= uint64_t(spa_poll_interval_seconds()) * 1000 + 10000);
     if (s.last_valid_ms) cJSON_AddNumberToObject(root, "state_age_ms", now - s.last_valid_ms);
     else cJSON_AddNullToObject(root, "state_age_ms");
+    cJSON_AddStringToObject(root, "state_source", s.command_acknowledged ? "command_acknowledgement" : (s.valid ? "rf" : "last_known_rf"));
     cJSON_AddStringToObject(root, "last_error", s.error.c_str());
     auto state = cJSON_AddObjectToObject(root, "last_known_spa_state");
     cJSON_AddNumberToObject(state, "water_c", s.state.water_tenths / 10.0);
@@ -206,6 +207,10 @@ esp_err_t diagnostic(httpd_req_t *req) {
         cJSON_AddNumberToObject(item, "uptime_ms", t.ms);
         cJSON_AddStringToObject(item, "tx", t.tx.c_str()); cJSON_AddStringToObject(item, "rx", t.rx.c_str());
         cJSON_AddStringToObject(item, "result", t.result.c_str());
+        cJSON_AddStringToObject(item, "tx_hex", t.tx_hex.c_str());
+        cJSON_AddStringToObject(item, "rx_hex", t.rx_hex.c_str());
+        cJSON_AddBoolToObject(item, "tx_hex_truncated", t.tx_truncated);
+        cJSON_AddBoolToObject(item, "rx_hex_truncated", t.rx_truncated);
     }
     char *body = cJSON_PrintUnformatted(root); cJSON_Delete(root);
     if (!body) return ESP_ERR_NO_MEM;

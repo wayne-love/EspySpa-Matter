@@ -201,6 +201,21 @@ class SerialUpdateTests(unittest.TestCase):
             (root / 'flasher_args.json').write_text(json.dumps(metadata))
             with self.assertRaises(u.UpdateError):u.load_package(root)
 
+    def test_local_dirty_revisions_match_short_manifest_to_full_quality_sha(self):
+        data = files()
+        manifest = json.loads(data['manifest.json'])
+        quality = json.loads(data['quality-report.json'])
+        manifest.update(channel='development', commit='abcdef1-dirty')
+        quality['commit'] = 'abcdef1234567-dirty'
+        data['manifest.json'] = json.dumps(manifest).encode()
+        data['quality-report.json'] = json.dumps(quality).encode()
+        self.assertEqual(u.validate_package(data)['image_channel'], 'development')
+        for commit in ('abcdef1234567', '1234567-dirty', 'abcdef1-dirty-extra'):
+            quality['commit'] = commit
+            data['quality-report.json'] = json.dumps(quality).encode()
+            with self.subTest(commit=commit), self.assertRaises(u.UpdateError):
+                u.validate_package(data)
+
     def test_partition_table_rejects_corruption_and_other_layout(self):
         self.assertEqual(u.partition_table(table()), u.EXPECTED)
         for index in (0, 8, 256 + 16):
@@ -290,6 +305,20 @@ class SerialUpdateTests(unittest.TestCase):
         with self.assertRaisesRegex(u.UpdateError, 'Another process'):
             self.execute(host=host)
         self.assertEqual(host.events, [])
+
+    def test_fuser_uses_absolute_operand_without_unsupported_separator(self):
+        host = u.Host({})
+        response = subprocess.CompletedProcess([], 0, b' 611\n', b'/dev/ttyACM0:')
+        with patch.object(u.Path, 'resolve', return_value=Path('/dev/ttyACM0')), patch.object(host, 'run', return_value=response) as run:
+            self.assertEqual(host.port_users('/dev/serial/by-id/test'), {611})
+        self.assertEqual(run.call_args.args[0], ['sudo', '-n', '/usr/bin/fuser', '/dev/ttyACM0'])
+        for error in (b'No process specification given', b'sudo: a password is required'):
+            response = subprocess.CompletedProcess([], 1, b'', error)
+            with patch.object(u.Path, 'resolve', return_value=Path('/dev/ttyACM0')), patch.object(host, 'run', return_value=response):
+                with self.assertRaises(u.UpdateError):host.port_users('/dev/serial/by-id/test')
+        response = subprocess.CompletedProcess([], 1, b'', b'')
+        with patch.object(u.Path, 'resolve', return_value=Path('/dev/ttyACM0')), patch.object(host, 'run', return_value=response):
+            self.assertEqual(host.port_users('/dev/serial/by-id/test'), set())
 
     def test_reenumeration_failure_keeps_verified_flash_distinct_from_boot(self):
         host = FakeHost();host.fail_wait = True

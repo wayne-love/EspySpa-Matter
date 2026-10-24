@@ -6,10 +6,17 @@
 #include <string>
 #include <vector>
 
-struct Transaction { uint64_t ms; std::string tx, rx, result; };
+struct Transaction {
+    uint64_t ms;
+    std::string tx, rx, result;
+    std::string tx_hex, rx_hex;
+    bool tx_truncated = false, rx_truncated = false;
+};
 struct Snapshot {
     spa::State state;
     bool valid = false;
+    // True while state reflects a successful spa ACK newer than the last RF read.
+    bool command_acknowledged = false;
     uint64_t last_valid_ms = 0;
     uint32_t queued_commands = 0;
     uint32_t polls_ok = 0, polls_failed = 0, commands_ok = 0, commands_failed = 0;

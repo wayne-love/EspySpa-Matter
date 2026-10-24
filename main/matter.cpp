@@ -207,6 +207,16 @@ void publish_fan(uint16_t id, const spa::State &state) {
 void publish(intptr_t) {
     publish_pending = false;
     auto s = snapshot(); publishing = true;
+    static int16_t last_setpoint = INT16_MIN;
+    static bool last_setpoint_from_ack = false;
+    if (s.last_valid_ms != 0 && (last_setpoint != s.state.setpoint_tenths ||
+            last_setpoint_from_ack != s.command_acknowledged)) {
+        ESP_LOGI(TAG, "Thermostat state published to Matter: target=%.1f C source=%s",
+                 s.state.setpoint_tenths / 10.0,
+                 s.command_acknowledged ? "command ACK" : "RF");
+        last_setpoint = s.state.setpoint_tenths;
+        last_setpoint_from_ack = s.command_acknowledged;
+    }
     finalise_controls(s);
     refresh_identity(0);
     bool fresh = s.valid && now_ms() - s.last_valid_ms <= 15000;

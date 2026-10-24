@@ -40,7 +40,7 @@ See [GitHub protected branches](https://docs.github.com/en/repositories/configur
 
 - Add a regression case that fails before fixing a protocol bug. Use recorded RF responses for new register formats; redact sensitive data and record the controller/firmware origin.
 - Preserve endpoint IDs and control meaning across updates. An intentional topology change needs a migration plan; do not remove the startup guard merely to make the device boot.
-- Keep writes queued, fresh-state guarded and confirmed by readback. Never retry a toggle automatically or block the Matter callback on UART.
+- Keep writes queued and cached-state guarded. Never request RF before or after an attribute update. Accept exact spa ACKs; on update failure, schedule a separate RF poll one second later without retrying the write. See [ADR 0014](decisions/0014-no-rf-during-attribute-updates.md). Never block the Matter callback on UART.
 - Document the behaviour and limits of new controls. A passing build does not validate a new SpaNET command on hardware.
 - Download images only from a successful quality-gate run and retain the previous known-working package.
 

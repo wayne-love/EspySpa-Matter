@@ -3,8 +3,8 @@ Target ESP32-C6, Matter over Thread, ESP-IDF 5.4.1, pinned ESP-Matter SDK (docs/
 Keep the spa's own safety, filtration and heater logic authoritative. Do not infer global off or heating enable from auxiliary heater settings.
 Reference implementation: wayne-love/ESPySpa, commit ca206919b4df5886a09e8c91fe82d01df1f5488a.
 Use its SpaInterface, SpaUtils, register-map and supplied snapshot to establish wire protocol; register labels, not global offsets, identify sections.
-Commands are queued and executed by one UART worker. Fresh RF before toggles; no automatic toggle retries. Confirm with RF readback.
-Never call blocking serial operations from Matter callbacks. Publish attributes on the CHIP task, suppressing command feedback.
+Commands are queued and executed by one UART worker. Attribute updates never request RF before or after a write; use cached state and exact command ACKs. On update failure, do not retry or issue RF in the update path; advance the separate scheduled RF poll to one second later. Normal scheduled RF polls remain separate from attribute updates. Wait 100 ms after every SpaNET exchange, including RF polls, before sending the next request. See ADRs 0011 and 0014.
+Never call blocking serial operations from Matter callbacks. Publish attributes on the CHIP task; an exact spa ACK updates cached control state and triggers immediate publication, while raw RF evidence and timestamps remain distinct.
 Remote diagnostics are a first-class feature. Bound buffers/history; redact credentials; never expose arbitrary serial writes or resets through the diagnostic API.
 Run tests/run.sh after protocol changes. Firmware compilation and physical commissioning are separate validation gates.
 Respect the user's 50% credit limit: usage/quota is unavailable in this environment, so do bounded milestones, avoid broad explorations and multiple-agent work; do not claim to enforce a percentage.
@@ -31,6 +31,10 @@ these read-only commands. The separate, explicitly requested
 `spa-update-serial` application updater is the narrow exception; see
 docs/SERIAL_UPDATES.md and ADR 0008. Its dry-run must never open serial, reset or
 interrupt logging. Implementing/testing it does not authorize a physical update.
+Explicit Matter property writes use the separate `spa-matter-write` companion;
+see docs/MATTER_WRITES.md and ADR 0009. Preserve the read-only tools, existing
+controller identity and one-shot writes. Report acceptance separately from fresh
+RF confirmation. Installing capability does not authorize an unspecified live change.
 Run mocked Python host tests without ESP-IDF; live hardware access is a separate
 validation step and sandbox escalation requires approval.
 

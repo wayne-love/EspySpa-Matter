@@ -6,7 +6,7 @@ Normal diagnostics use HTTP over IPv6 on **Thread**, port **80**. Wi-Fi is disab
 2. Browse to `http://[IPv6-address]/`.
 3. The diagnostics view connects automatically and refreshes every five seconds. Use Download snapshot to save its current JSON.
 
-The diagnostics view and `/api/diagnostics` are available without authentication while the device is reachable over Thread. The diagnostics endpoint is read-only and exposes no arbitrary UART command, commissioning credential or Thread dataset. The same site has a separate Firmware tab with unauthenticated update, upload, channel and reboot operations; see [OTA management](OTA.md). Keep access limited to a trusted network.
+The diagnostics view and `/api/diagnostics` are available without authentication while the device is reachable over Thread. The diagnostics endpoint is read-only and exposes no arbitrary UART command, commissioning credential or Thread dataset. It does expose bounded raw SpaNET UART response bytes as hex; keep access limited to a trusted network. The same site has a separate Firmware tab with unauthenticated update, upload, channel and reboot operations; see [OTA management](OTA.md).
 
 The snapshot includes:
 
@@ -14,7 +14,7 @@ The snapshot includes:
 - Firmware version, uptime, reset reason, free/minimum heap.
 - Validity/freshness and age of the last confirmed state; failed polling retains last known data but marks it stale.
 - Water temperature, setpoint, light/heating/sleep indicators, pump modes/capability masks/readiness and blower mode.
-- Queue depth, poll and command counters, latest error, and last 16 UART/request transactions (including queued and rejected requests). RX history is truncated to 1024 bytes per transaction; complete latest RF is bounded to 8192 bytes.
+- Queue depth, poll and command counters, latest error, and last 16 UART/request transactions (including queued and rejected requests). Text RX history is truncated to 1024 bytes per transaction; complete latest RF is bounded to 8192 bytes. Actual UART exchanges also include `tx_hex` and `rx_hex`: lowercase hex for bytes passed to the UART TX driver and bytes received from UART, with truncation flags. Hex TX includes the framing blank line, command and line ending. TX hex is a driver-level trace, not an electrical capture of the wire. TX is capped at 64 bytes and RX at 512 bytes per transaction; queued/rejected entries have empty byte traces.
 - Matter fabric count/latest numeric device event; Thread numeric role and IPv6 addresses. Roles: 0 disabled, 1 detached, 2 child, 3 router, 4 leader.
 
 `last_known_spa_state` is not evidence of live connectivity: always check `fresh`. Before the first successful poll, state fields are placeholders and state age is null. No credentials are logged. Standard Matter network diagnostic clusters offer a second authenticated channel through your controller.
@@ -25,12 +25,16 @@ A separate Wi-Fi recovery mode or independent remote log collector is deferred. 
 
 ## Readable serial logs
 
-- `spa_state`: valid RF readback with Thermostat water/target temperatures, heating/sleep flags, Lights, each installed Pump's native named mode/readiness/capabilities, and Blower mode. Variable level is reported only in Variable mode; Off/Ramp label it inactive. State is printed on changes, recovery and approximately once per minute. Failed RF logs mark controls unavailable; placeholders are never reported as valid readback.
-- `spa_command`: named requests queued, rejected, executed, written and confirmed/failed. Queued means accepted, not applied. Wire commands are shown alongside their control names; ACK mismatch always proceeds to readback without repeating the write.
+- `spa_state`: valid RF readback with Thermostat water/target temperatures, heating/sleep flags, Lights, each installed Pump's native named mode/readiness/capabilities, and Blower mode. Variable level is reported only in Variable mode; Off/Ramp label it inactive. State is printed on changes, recovery and approximately once per minute. Every RF response gets an explicit `accepted` or `rejected` outcome: rejections are error-level logs with their bounded parser reason and response byte count, even when the higher-level availability warning is throttled. The corresponding bounded UART hex preview is in `spa_uart`. Failed RF logs mark controls unavailable; placeholders are never reported as valid readback.
+- `spa_command`: named requests queued, rejected, executed, written and confirmed/failed. Queued means accepted, not applied. Wire commands are shown alongside their control names. Attribute updates never trigger RF before or after a command; a failed update advances the separate scheduled RF poll to one second later without retrying the write.
+- `spa_uart`: a start and finish record for every UART exchange. The finish record reports command, received byte count, elapsed milliseconds and a hex prefix of at most 96 response bytes; `[truncated]` means the response exceeded that preview. Elapsed time includes framing and response collection through the quiet/timeout boundary, and excludes the 100 ms post-exchange settling delay. Empty responses are logged with zero bytes and an empty prefix.
 - `spa_matter`: native composite startup endpoint mapping and named spa state/availability logs. IDs 1/2/3–7/8 represent Thermostat/Light/Pumps 1–5/Blower. Endpoint 9 (the former aggregator) is retired and missing pumps are not created. Native endpoints do not have Bridged Device Basic Information `Reachable`; freshness and command eligibility are tracked separately. Availability is not proof a pump is physically running.
 - `spa_network`: Thread role and up to 16 current IPv6 unicast addresses, printed immediately and every 60 seconds, including detached/no-address and lock-busy cases. Link-local and Thread mesh-local addresses are labelled. Preferred valid addresses outside these scopes on an attached device get diagnostic and firmware URLs as **routable candidates**; your border router and computer still need an IPv6 route. Changed addresses replace the next report's list. No Thread dataset or pairing keys are printed.
 
 Repeated `esp_matter_attribute` INFO read/write traces are suppressed at startup; its warnings/errors remain enabled. Application state and command logs supply the spa meaning instead of repeated numeric cluster/attribute IDs. Other SDK logs retain their existing levels.
+
+The bounded UART transaction trace format and timing boundaries are recorded in
+[ADR 0013](decisions/0013-uart-transaction-logging.md).
 
 Hardware acceptance: compare named RF summaries and command confirmations with the spa panel, verify a failed poll reports unavailability and recovery reports valid state, and capture at least two minutes of serial output to confirm IPv6 reports repeat at 60-second intervals, including after a Thread address/network change. Host formatting/timing tests do not validate SDK locking or physical Thread routing.
 

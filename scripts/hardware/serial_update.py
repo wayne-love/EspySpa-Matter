@@ -198,7 +198,11 @@ def validate_package(files):
     require(manifest.get('target') == 'esp32c6' and manifest.get('version') == version, 'Manifest target/version mismatch')
     require(manifest.get('channel') in ('release', 'development'), 'Invalid image channel')
     require(manifest.get('sha256') == digest(app) and manifest.get('bytes') == len(app), 'Manifest hash/size mismatch')
-    require(manifest.get('commit') and str(quality.get('commit', '')).startswith(str(manifest['commit'])), 'Manifest/quality revisions differ')
+    manifest_revision = re.fullmatch(r'([0-9a-f]{7,40})(-dirty)?', str(manifest.get('commit', '')))
+    quality_revision = re.fullmatch(r'([0-9a-f]{7,40})(-dirty)?', str(quality.get('commit', '')))
+    require(manifest_revision and quality_revision
+            and quality_revision[1].startswith(manifest_revision[1])
+            and bool(quality_revision[2]) == bool(manifest_revision[2]), 'Manifest/quality revisions differ')
     return {'version': version, 'image_channel': manifest['channel'], 'sha256': digest(app),
             'app': app, 'table': table, 'settings': settings}
 
@@ -280,9 +284,12 @@ class Host:
         # Resolve identity to its current kernel node for narrowly scoped sudoers
         # rules; use the stable by-id identity for opening and re-enumeration.
         node = str(Path(device).resolve(strict=True))
-        result = self.run(['sudo', '-n', '/usr/bin/fuser', '--', node], allowed=(0, 1))
+        require(node.startswith('/dev/'), 'Resolved serial device must be under /dev')
+        # psmisc fuser on Debian 13 stops parsing operands after "--". The
+        # validated absolute path cannot be interpreted as an option.
+        result = self.run(['sudo', '-n', '/usr/bin/fuser', node], allowed=(0, 1))
         if result.returncode == 1:
-            require(not result.stderr.strip(), 'Cannot establish all serial-port users; check fuser sudo permission')
+            require(not result.stderr.strip(), 'Cannot establish all serial-port users; check fuser compatibility and sudo permission')
             return set()
         require(bool(re.fullmatch(rb'[\d\s]+', result.stdout)), 'Unexpected serial-port ownership response')
         return {int(value) for value in result.stdout.split()}
