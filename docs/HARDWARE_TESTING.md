@@ -73,7 +73,7 @@ Use normal independently approved SSH troubleshooting for detailed connection er
 
 ## Safety and interpretation
 
-Remote operations are limited to a bounded `tail` and an HTTP GET to the exact
+The original four tools' remote operations are limited to a bounded `tail` and an HTTP GET to the exact
 diagnostics endpoint. There are no serial writes, service restarts, resets,
 flashing, installation or automatic retries. Existing firmware polling continues
 independently. SSH connect timeout is five seconds, curl has a five-second connect
@@ -134,7 +134,8 @@ Serial-log readability does not establish physical UART health.
 
 All four commands automatically read `~/.config/espyspa/hardware.env` if present.
 The file is UTF-8 data, never sourced or executed. Only the six `ESPYSPA_*`
-settings listed above are accepted. A missing file is optional; unreadable,
+settings listed above and `ESPYSPA_MATTER_NODE_ID` for the optional Matter controller
+are accepted. A missing file is optional; unreadable,
 invalid or oversized files fail clearly before SSH. Errors identify the line
 and problem without printing settings or values. Keep this file private (for
 example, mode 0600); store only the SSH key path, never private key contents.
@@ -193,3 +194,13 @@ isolated setup, verify address replacement updates the value, Thread loss clears
 it, reconnection restores it, and invalid/scoped-only addresses never produce a
 URL. Controller UI visibility/caching is a separate observation from attribute
 reads. Do not commission, reset or disrupt the operational network for this check.
+
+## Additional Pi Matter test controller
+
+The separately commissioned Pi controller has a read-only `spa-matter --json`
+command and optional bounded `--subscribe` check. It uses the existing SSH
+configuration, private persistent controller storage and discovered endpoint IDs.
+Installation and commissioning are separate operator steps; the command never
+commissions, resets or invokes spa controls. See the [Pi controller guide](MATTER_TEST_CONTROLLER.md)
+for pinned installation, Apple Home multi-admin, private code input, node ID,
+repeat commands and recovery, and [ADR 0007](decisions/0007-pi-matter-test-controller.md).
