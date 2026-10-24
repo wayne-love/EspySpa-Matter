@@ -26,7 +26,11 @@ docs/decisions/0002-read-only-hardware-toolkit.md. Configure connection details 
 variables, data-only `~/.config/espyspa/hardware.env` defaults or ignored
 `.hardware.local.json`; never commit keys, addresses,
 credentials or captures. These tools only read logs and GET diagnostics through
-SSH on the Pi. Do not add serial writes, resets, service control or flashing.
+SSH on the Pi. Do not add serial writes, resets, service control or flashing to
+these read-only commands. The separate, explicitly requested
+`spa-update-serial` application updater is the narrow exception; see
+docs/SERIAL_UPDATES.md and ADR 0008. Its dry-run must never open serial, reset or
+interrupt logging. Implementing/testing it does not authorize a physical update.
 Run mocked Python host tests without ESP-IDF; live hardware access is a separate
 validation step and sandbox escalation requires approval.
 

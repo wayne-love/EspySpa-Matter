@@ -34,6 +34,11 @@ Press and release **GP button (GPIO21) five times within five seconds** while th
 
 See [QUALITY.md](docs/QUALITY.md) for CI gates, artifact verification, branch protection setup and hardware acceptance checks for incremental changes.
 
+For explicit application updates through the Raspberry Pi's USB serial connection,
+see [serial setup, dry-run, flashing and recovery](docs/SERIAL_UPDATES.md). The
+updater preserves the current valid slot and credential partitions, with a separate
+hardware acceptance gate; existing web OTA remains available.
+
 ## Test
 
 ```sh

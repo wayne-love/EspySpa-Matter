@@ -42,6 +42,7 @@ ENV_SETTINGS = {
     'ESPYSPA_SSH_HOST', 'ESPYSPA_SSH_USER', 'ESPYSPA_SSH_KEY',
     'ESPYSPA_DIAGNOSTICS_URL', 'ESPYSPA_LOG_PATH', 'ESPYSPA_SPA_CONNECTED',
     'ESPYSPA_MATTER_NODE_ID',
+    'ESPYSPA_SERIAL_DEVICE',
 }
 
 
@@ -121,11 +122,15 @@ def config(path):
     return values
 
 
-def ssh(cfg, command):
-    argv = ['ssh', '-F', '/dev/null', '-i', cfg['ssh_key'], '-o', 'StrictHostKeyChecking=yes',
+def ssh_argv(cfg, command):
+    return ['ssh', '-F', '/dev/null', '-i', cfg['ssh_key'], '-o', 'StrictHostKeyChecking=yes',
             '-o', 'BatchMode=yes', '-o', 'IdentitiesOnly=yes', '-o', 'ConnectTimeout=5',
             '-o', 'ServerAliveInterval=5', '-o', 'ServerAliveCountMax=2',
             cfg['ssh_user'] + '@' + cfg['ssh_host'], command]
+
+
+def ssh(cfg, command):
+    argv = ssh_argv(cfg, command)
     try:
         result = subprocess.run(argv, capture_output=True, timeout=30, check=False)
     except subprocess.TimeoutExpired:
