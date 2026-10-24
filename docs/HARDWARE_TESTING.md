@@ -134,8 +134,9 @@ Serial-log readability does not establish physical UART health.
 
 All four commands automatically read `~/.config/espyspa/hardware.env` if present.
 The file is UTF-8 data, never sourced or executed. Only the six `ESPYSPA_*`
-settings listed above and `ESPYSPA_MATTER_NODE_ID` for the optional Matter controller
-are accepted. A missing file is optional; unreadable,
+settings listed above, `ESPYSPA_MATTER_NODE_ID` for the optional Matter controller,
+and `ESPYSPA_SERIAL_DEVICE` for the separate USB updater are accepted.
+A missing file is optional; unreadable,
 invalid or oversized files fail clearly before SSH. Errors identify the line
 and problem without printing settings or values. Keep this file private (for
 example, mode 0600); store only the SSH key path, never private key contents.
@@ -204,3 +205,13 @@ Installation and commissioning are separate operator steps; the command never
 commissions, resets or invokes spa controls. See the [Pi controller guide](MATTER_TEST_CONTROLLER.md)
 for pinned installation, Apple Home multi-admin, private code input, node ID,
 repeat commands and recovery, and [ADR 0007](decisions/0007-pi-matter-test-controller.md).
+
+## Explicit USB serial application updates
+
+`spa-update-serial` is a separate mutating tool, not part of read-only status,
+health, logs or captures. It accepts an extracted validated artifact directory,
+uses the existing Pi connection, and supports a strictly non-interrupting
+`--dry-run`. Real updates require their own operator authorization. See
+[serial update commands and recovery](SERIAL_UPDATES.md) and
+[ADR 0008](decisions/0008-usb-serial-application-updates.md) for inactive-slot
+selection, NEW-state rollback, serial-service restoration and hardware gates.

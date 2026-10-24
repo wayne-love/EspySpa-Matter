@@ -110,3 +110,9 @@ The **espyspa-matter-development-esp32c6** artifact contains one application ima
 The **espyspa-matter-debug-esp32c6** artifact contains the matching ELF with debug symbols. It is useful for decoding crash backtraces and is not required for flashing. Keep it with the corresponding firmware version when investigating a crash.
 
 For application-only updates, retain the existing OTA metadata: do not flash `ota_data_initial.bin`. It initializes the OTA selection partition for a fresh installation.
+
+For routine USB updates from the Pi, use [the serial application updater](SERIAL_UPDATES.md)
+with this complete flashing artifact and the matching quality-report artifact.
+It determines the inactive slot from device records and narrowly selects the
+verified new image; a fixed ota_0 application write does not update a selected
+ota_1 image. Do not use the full flashing JSON as a routine update command.

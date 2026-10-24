@@ -71,6 +71,17 @@ The target module has 8 MB flash. The partition table therefore provides two app
 
 See [ADR 0003](decisions/0003-unified-firmware-web-management.md) for the unified page and local upload design.
 
+## Raspberry Pi USB serial updates
+
+The separate [USB serial updater](SERIAL_UPDATES.md) writes the inactive slot
+through esptool and narrowly selects it as NEW while retaining the current VALID
+record. This preserves the existing trial-boot/30-second confirmation process;
+it does not replace web OTA or alter stored update-channel policy. Never assume
+that an app-only write at `0x20000` changes the running firmware: ota_1 may be
+selected. Full-device recovery is separate. See
+[ADR 0008](decisions/0008-usb-serial-application-updates.md) and the serial guide's
+artifact requirements, dry-run, exact Pi commands and physical acceptance limits.
+
 ## Thread DNS integration
 
 [ADR 0005](decisions/0005-thread-ota-dns.md) records the pinned SDK evidence and
