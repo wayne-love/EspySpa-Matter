@@ -1,5 +1,8 @@
 # Read-only hardware diagnostics
 
+Explicit actuator changes use the separate [Matter write companion](MATTER_WRITES.md);
+the diagnostics commands described below remain read-only.
+
 The Python toolkit in `scripts/hardware/` reads the Pi's serial log and fetches the
 ESP32 `/api/diagnostics` JSON over Thread using curl **on the Pi**. No local
 ESP-IDF installation is needed. Install Python 3.9+ and OpenSSH locally; the Pi
@@ -38,7 +41,10 @@ scripts/hardware/spa-capture --output-dir hardware-captures --json
 
 Status returns diagnostics JSON; logs returns text or a JSON `logs` field.
 Health returns firmware, Thread/Matter state, RF freshness, counters and heap
-figures, plus the full diagnostics object including RF transactions. Health also
+figures, plus the full diagnostics object including RF transactions. `state_source`
+is `command_acknowledgement` after a successful spa ACK, `rf` after a valid poll,
+or `last_known_rf` after an unsuccessful poll. The raw RF response and age remain
+separate from the cached control state. Health also
 reads the bounded serial log; an unreadable or empty log fails health. This checks
 log availability, not serial-service liveness, timestamp freshness or UART wiring.
 Health is unsuccessful when expected-connected RF is stale, Thread is not

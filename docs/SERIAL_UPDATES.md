@@ -125,7 +125,7 @@ The real updater uses these narrowly scoped commands through `sudo -n`:
 ```text
 /usr/bin/systemctl stop espyspa-serial.service
 /usr/bin/systemctl start espyspa-serial.service
-/usr/bin/fuser -- /dev/ttyACM0
+/usr/bin/fuser /dev/ttyACM0
 ```
 
 The last argument is the resolved current kernel node; it may change on USB
@@ -136,7 +136,7 @@ allowing arbitrary fuser flags, `-k`, service names or unrestricted root Python:
 
 ```sudoers
 Cmnd_Alias ESPYSPA_LOGGING = /usr/bin/systemctl stop espyspa-serial.service, /usr/bin/systemctl start espyspa-serial.service
-Cmnd_Alias ESPYSPA_PORT_USERS = /usr/bin/fuser -- /dev/ttyACM[0-9], /usr/bin/fuser -- /dev/ttyACM[0-9][0-9]
+Cmnd_Alias ESPYSPA_PORT_USERS = /usr/bin/fuser /dev/ttyACM[0-9], /usr/bin/fuser /dev/ttyACM[0-9][0-9]
 PI_USER ALL=(root) NOPASSWD: ESPYSPA_LOGGING, ESPYSPA_PORT_USERS
 ```
 
@@ -145,6 +145,9 @@ Merely configuring these rules does not stop the service or reset the ESP32.
 The tool refuses privilege failures rather than prompting for a password in
 automation. Non-ACM overrides require an equally narrow administrator-reviewed
 port-ownership rule; there is no broad sudo fallback.
+The command intentionally omits `--`: the inspected Debian 13 psmisc fuser
+rejects that separator before the file operand. Only a validated absolute
+`/dev/` path is passed, so it cannot become an option.
 
 ## Commands through the existing SSH configuration
 
@@ -318,7 +321,7 @@ health/channel/fabric comparison and bounded private output. An optional isolate
 esptool 4.8.1 test executes the real vendor write/verify functions against an
 in-memory fake chip; no serial device is opened.
 
-The existing local package passed offline validation and a real SSH dry-run on
+During initial implementation, the existing local package passed offline validation and a real SSH dry-run on
 the configured Pi. Dry-run reported the existing development version and active
 logger, and explicitly deferred all device-mode/flash checks. No firmware build,
 flash, ESP32 reset, logging interruption or sudoers change was performed.
@@ -330,3 +333,38 @@ and whitespace checks passed.
 Automatic/manual USB entry/return, service privilege rules, actual flash reads,
 physical write verification, retained fabrics/configuration and rollback remain
 a separately authorized hardware acceptance gate.
+
+## Subsequent authorized USB update acceptance
+
+On 2026-10-24, an explicitly authorized update synced main to `0eb5e3b`, ran the
+pinned local test/build/package sequence and installed
+`0.1.0-dev.local+0eb5e3b-dirty` through the Pi's native USB interface.
+The image was 1,964,576 bytes, SHA-256
+`ca41910cbd35f62e09143d78c05b661d5247763fee065acc519639e180253200`.
+
+Two initial preflight rejections exposed host-only compatibility bugs: fuser's
+unsupported `--` operand handling, and comparison of the short `SHA-dirty`
+manifest revision with the full `SHA-dirty` quality-report revision. Both were
+fixed with regressions before proceeding; neither rejection opened serial,
+interrupted logging, reset the ESP32 or wrote flash. Revision validation now
+compares the hexadecimal SHA prefix and requires matching dirty flags.
+
+One subsequent serial write completed successfully. Automatic USB download entry
+and return to normal boot worked. The updater read the matching physical
+partition table, wrote the inactive ota_0 application, verified flash contents,
+committed and verified one NEW selection sector while retaining the ota_1
+fallback, and restored logging. The new image reached VALID state and HTTP
+application health was healthy. The update channel remained development.
+
+Independent post-update health reported a readable serial log, attached Thread
+Router state, fresh expected-connected spa RF and three retained Matter fabrics.
+The Pi's existing commissioned identity successfully read the new Basic
+Information software-version string without re-pairing. The previous version
+was `0.1.0-dev.local+e49528a-dirty`.
+
+The compatibility fixes remain uncommitted, accounting for the dirty build
+identity. The latest host suite completed 97 cases (96 passed, one optional
+skip), and all 26 updater cases passed in the isolated pinned-esptool environment.
+Both compiler host suites and package/configuration gates passed. Manual BOOT
+entry, power-loss recovery and deliberate rollback fault injection remain
+untested; they are not implied by this successful update.

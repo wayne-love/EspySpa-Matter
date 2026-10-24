@@ -96,28 +96,74 @@ int main() {
     CHECK(!recovery.should_open(0, false, false)); // Offline deletion cannot be inferred.
 
     std::string error;
+    CHECK(controls::next_poll_after_failure(123456) == 124456);
     spa::Request variable{spa::Control::Blower, 0, spa::RequestMethod::NativeMode, 5};
-    for (int scenario = 0; scenario < 5; ++scenario) {
+    for (int scenario = 0; scenario < 3; ++scenario) {
         spa::State native; native.blower = 1; native.variable_level = 3;
         std::vector<std::string> writes;
         int calls = 0;
         auto execute = [&](spa::Request stage, std::string &why) {
             ++calls;
-            if (calls == 1 && scenario == 1) { why = "fresh RF failed"; return false; }
-            if (calls == 2 && scenario == 3) native.blower = 1; // Controller changed between stages.
             spa::Command command;
             if (!spa::command(native, stage, command, why)) return false;
             if (!command.wire.empty()) writes.push_back(command.wire);
-            if (calls == 1 && scenario == 2) { why = "mode readback failed"; return false; }
+            if ((scenario == 1 && calls == 1) || (scenario == 2 && calls == 2)) {
+                why = "command acknowledgement missing or mismatched";
+                return false;
+            }
             if (stage.method == spa::RequestMethod::NativeMode) native.blower = stage.value;
             else native.variable_level = stage.value;
-            if (calls == 2 && scenario == 4) native.blower = 1; // Mode changed during level write.
-            return spa::matches(native, stage);
+            controls::acknowledged(native, stage);
+            return true;
         };
-        CHECK(controls::execute_request(variable, execute, [&] { return native; }, error) == (scenario == 0));
+        CHECK(controls::execute_request(variable, native, execute, error) == (scenario == 0));
         if (scenario == 0) CHECK(writes == std::vector<std::string>({"S28:0", "S13:5"}));
-        if (scenario == 1) CHECK(writes.empty() && calls == 1);
-        if (scenario == 2 || scenario == 3) CHECK(writes == std::vector<std::string>({"S28:0"}));
+        if (scenario == 1) CHECK(writes == std::vector<std::string>({"S28:0"}) && calls == 1);
+        if (scenario == 2) CHECK(writes == std::vector<std::string>({"S28:0", "S13:5"}) && calls == 2);
+    }
+    // Attribute update stages never issue RF, including failed ACKs and light writes.
+    {
+        spa::State working; working.setpoint_tenths = 380;
+        int writes = 0;
+        bool ack = true;
+        auto send = [&](const spa::Command &cmd) { ++writes; CHECK(cmd.wire == "W40:370"); return ack; };
+        CHECK(controls::execute_stage({spa::Control::Setpoint, 370}, working, send, error));
+        CHECK(writes == 1 && working.setpoint_tenths == 370);
+        CHECK(controls::execute_stage({spa::Control::Setpoint, 370}, working, send, error));
+        CHECK(writes == 1); // Acknowledged state prevents duplicate no-op writes.
+        working.setpoint_tenths = 380; ack = false;
+        CHECK(!controls::execute_stage({spa::Control::Setpoint, 370}, working, send, error));
+        CHECK(writes == 2 && working.setpoint_tenths == 380);
+        CHECK(error == "command acknowledgement missing or mismatched");
+        int light_writes = 0; working.light = false; ack = true;
+        auto light_send = [&](const spa::Command &) { ++light_writes; return true; };
+        CHECK(controls::execute_stage({spa::Control::Light, 1}, working, light_send, error));
+        CHECK(light_writes == 1 && working.light); // No RF pre-read for the absolute Matter update.
+    }
+    {
+        spa::State working; working.blower = 1; working.variable_level = 3;
+        std::vector<std::string> writes;
+        auto send = [&](const spa::Command &cmd) { writes.push_back(cmd.wire); return true; };
+        auto execute = [&](spa::Request r, std::string &why) {
+            return controls::execute_stage(r, working, send, why);
+        };
+        CHECK(controls::execute_request(variable, working, execute, error));
+        CHECK(writes == std::vector<std::string>({"S28:0", "S13:5"}));
+        CHECK(working.blower == 0 && working.variable_level == 5);
+        working.pump_installed[0] = true; working.pump_ready[0] = true;
+        working.pump_modes[0] = 29; working.pump_speed_type[0] = 2;
+        CHECK(execute({spa::Control::Pump1, 1}, error));
+        CHECK(working.pumps[0] == 2 && writes.back() == "S22:2");
+        CHECK(!execute({spa::Control::Pump2, 1}, error));
+        CHECK(writes.size() == 3); // Unsupported controls still never write.
+        working.blower = 1;
+        writes.clear();
+        auto reject = [&](const spa::Command &cmd) { writes.push_back(cmd.wire); return false; };
+        auto fail_stage = [&](spa::Request r, std::string &why) {
+            return controls::execute_stage(r, working, reject, why);
+        };
+        CHECK(!controls::execute_request(variable, working, fail_stage, error));
+        CHECK(writes == std::vector<std::string>({"S28:0"}));
     }
     std::cout << "Per-boot discovery freeze, stable identities, native mode mapping, staged blower writes and commissioning recovery passed\n";
 }

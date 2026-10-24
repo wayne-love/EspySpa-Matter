@@ -8,7 +8,7 @@ ESPySpa at `ca206919b4df5886a09e8c91fe82d01df1f5488a` uses Arduino, UART, MQTT d
 |---|---|---|
 | Measured water | R5 field 15 / WTMP (tenths °C), not unreliable R2 PoolTemperature | Thermostat LocalTemperature (hundredths °C) |
 | Target | R6 field 8 / STMP; W40; 50–410, even values | OccupiedHeatingSetpoint, reject unsupported increments |
-| Light | R5 field 14; W14 toggles | OnOff, always fresh RF before toggling |
+| Light | R5 field 14; W14 toggles | OnOff, selected from cached state; no update-triggered RF |
 | Pumps | R5 fields 18–22; S22–S26; RG fields 7–11 capabilities, 1–5 readiness | Per-boot installed endpoints; Fan speed slider, OnOff compatibility and exact advertised Mode Select |
 | Blower | RC field 10; S28:0 Variable, :1 Ramp, :2 Off | Fan slider plus Off/Ramp/Variable 1–5; S13 only after confirmed Variable |
 
@@ -19,7 +19,7 @@ Only the required fields are parsed and validated, using register labels so leng
 1. Confirm exact C6 board, pins, serial adapter/levels and spa controller model/firmware. First collect RF without issuing writes and compare every displayed value to the spa panel.
 2. Commission to the target Matter controller and Thread border router. Verify discovery, naming, subscription updates, restart/fabric persistence, and routable IPv6 diagnostics with USB unplugged.
 3. Change setpoint through Matter in 0.2 °C steps. Validate 5 and 41 °C boundaries and rejection of invalid values; restore the normal temperature afterward. Confirm external panel changes propagate.
-4. Test light on/off repeatedly, including changes at the panel, lost acknowledgement, UART disconnect and rapid duplicate commands. No toggle retry or cached-state inversion.
+4. Test light on/off, including panel changes, lost acknowledgement, UART disconnect and duplicate commands. Attribute updates use cached state and exact ACKs; they do not issue RF before or after the command and never retry a failed toggle.
 5. Test each installed jet and blower individually. Confirm command mapping and reported state; unsupported pumps reject commands. Confirm the spa still enforces its readiness and safety constraints. Do not use this migration to disable required filtration.
 6. Disconnect/reconnect serial; check stale indicator, null Matter temperature, rejected writes and automatic polling recovery. Fill the queue; verify bounded memory and rejected excess requests.
 7. Restart ESP, border router and controller. Inspect uptime/reset, Thread role, raw RF and command history over IPv6. Confirm no malformed reply can produce valid state or unsolicited writes.

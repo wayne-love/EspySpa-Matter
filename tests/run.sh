@@ -27,6 +27,10 @@ ASAN_OPTIONS=detect_leaks=0 ./.host-control-tests
 ASAN_OPTIONS=detect_leaks=0 ./.host-log-tests
 
 "$compiler" -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+    -Imain tests/uart_trace_test.cpp -o .host-uart-trace-tests
+ASAN_OPTIONS=detect_leaks=0 ./.host-uart-trace-tests
+
+"$compiler" -std=c++17 -Wall -Wextra -Werror -pedantic -fsanitize=address,undefined -fno-omit-frame-pointer -g \
     -DESPYSPA_DNS_HOST_TEST -Imain -Itests -Itests/ota_http_stubs \
     main/thread_dns.cpp main/ota_http.cpp tests/thread_dns_test.cpp -o .host-dns-tests
 ASAN_OPTIONS=detect_leaks=0 ./.host-dns-tests

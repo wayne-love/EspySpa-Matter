@@ -1,6 +1,6 @@
 # ADR 0008: Inactive-slot USB serial updates with rollback-aware selection
 
-Status: Accepted by operator; implemented and host tested; physical updates pending.
+Status: Accepted; native USB update and post-boot health verified under explicit authorization.
 
 ## Context and decision
 
@@ -84,6 +84,14 @@ Post-boot health is recomputed for each poll, so HTTP loss after a healthy pendi
 image cannot be masked by a later serial confirmation marker. Regression cases
 cover loss until timeout in both spa-connection modes, recovery before timeout,
 and serial-only confirmation with health explicitly unknown.
+
+A subsequent authorized hardware update verified automatic USB entry/return,
+inactive-slot application and selection-sector readback, VALID confirmation,
+restored logging, healthy HTTP diagnostics and the existing Pi Matter identity.
+Preflight regressions also cover Debian fuser operand compatibility and matching
+short/full Git revisions with consistent dirty flags. Manual download mode,
+power-loss interruption and deliberately triggered rollback remain separate
+acceptance tests. See the serial guide for the precise installed image identity.
 
 - [Serial setup, exact commands, verification and recovery](../SERIAL_UPDATES.md)
 - [Existing OTA and rollback](../OTA.md)

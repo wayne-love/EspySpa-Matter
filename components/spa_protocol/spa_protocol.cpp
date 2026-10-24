@@ -17,12 +17,13 @@ bool number(std::string_view s, int &v) {
 bool parse(std::string_view data, State &out, std::string &error) {
     auto fail = [&](const char *why) { error = why; return false; };
     data = trim(data);
-    if (data.size() > 8192 || data.substr(0, 3) != "RF:") return fail("missing RF header or oversized response");
+    if (data.size() > 8192) return fail("response exceeds 8192-byte parser limit");
+    if (data.substr(0, 3) != "RF:") return fail("response does not start with RF: header");
     std::map<std::string, std::vector<std::string_view>> regs;
     data.remove_prefix(3);
     while (!data.empty()) {
         const auto end = data.find(':');
-        if (end == data.npos) { if (trim(data) == "*") break; return fail("unterminated register"); }
+        if (end == data.npos) { if (trim(data) == "*") break; return fail("register entry is missing its terminating ':'"); }
         auto line = trim(data.substr(0, end)); data.remove_prefix(end + 1);
         while (!line.empty() && (line.front() == ',' || line.front() == '*' || line.front() == '\r' || line.front() == '\n' || line.front() == ' ')) line.remove_prefix(1);
         if (line.empty()) continue;
@@ -32,42 +33,52 @@ bool parse(std::string_view data, State &out, std::string &error) {
             if (comma == line.npos) break;
             line.remove_prefix(comma + 1);
         }
-        if (fields[0].size() != 2 || fields[0][0] != 'R') return fail("invalid register label");
+        if (fields[0].size() != 2 || fields[0][0] != 'R') return fail("register label must be R followed by one character");
         std::string name(fields[0]);
-        if (regs.count(name)) return fail("duplicate register");
+        if (regs.count(name)) { error = "duplicate register " + name; return false; }
         regs.emplace(name, std::move(fields));
     }
     auto get = [&](const char *reg, size_t index, int &value, int min, int max) {
         auto r = regs.find(reg);
-        return r != regs.end() && index < r->second.size() && number(r->second[index], value) && value >= min && value <= max;
+        const auto field = std::string(reg) + " field[" + std::to_string(index) + "]";
+        if (r == regs.end()) { error = std::string(reg) + " register is missing"; return false; }
+        if (index >= r->second.size()) { error = field + " is missing"; return false; }
+        if (!number(r->second[index], value)) { error = field + " is not a valid integer"; return false; }
+        if (value < min || value > max) {
+            error = field + " is outside the supported range " + std::to_string(min) + ".." + std::to_string(max);
+            return false;
+        }
+        return true;
     };
     State s; int v;
-    if (!get("R5", 15, s.water_tenths, 0, 600) || !get("R6", 8, s.setpoint_tenths, 50, 410)) return fail("invalid temperature fields");
-    if (!get("R5", 14, v, 0, 1)) return fail("invalid light field");
+    if (!get("R5", 15, s.water_tenths, 0, 600)) return false;
+    if (!get("R6", 8, s.setpoint_tenths, 50, 410)) return false;
+    if (!get("R5", 14, v, 0, 1)) return false;
     s.light = v;
-    if (!get("R5", 12, v, 0, 1)) return fail("invalid heating field");
+    if (!get("R5", 12, v, 0, 1)) return false;
     s.heating = v;
-    if (!get("R5", 10, v, 0, 1)) return fail("invalid sleep field");
+    if (!get("R5", 10, v, 0, 1)) return false;
     s.sleeping = v;
-    if (!get("RC", 10, s.blower, 0, 255)) return fail("invalid blower field");
-    if (!get("R6", 1, s.variable_level, 0, 255)) return fail("invalid variable level");
+    if (!get("RC", 10, s.blower, 0, 255)) return false;
+    if (!get("R6", 1, s.variable_level, 0, 255)) return false;
     for (size_t p = 0; p < 5; ++p) {
-        if (!get("R5", 18 + p, s.pumps[p], 0, 255)) return fail("invalid pump state");
-        if (!get("RG", 1 + p, v, 0, 1)) return fail("invalid pump readiness");
+        if (!get("R5", 18 + p, s.pumps[p], 0, 255)) return false;
+        if (!get("RG", 1 + p, v, 0, 1)) return false;
         s.pump_ready[p] = v;
         auto rg = regs.find("RG");
-        if (rg == regs.end() || rg->second.size() <= 7 + p) return fail("missing pump capabilities");
+        const auto capability_field = "RG field[" + std::to_string(7 + p) + "] for pump " + std::to_string(p + 1);
+        if (rg == regs.end() || rg->second.size() <= 7 + p) { error = capability_field + " is missing"; return false; }
         auto cap = rg->second[7 + p];
         if (cap.substr(0, 2) == "0-") continue;
-        if (cap.substr(0, 2) != "1-" || cap.rfind('-') <= 1) return fail("invalid pump capabilities");
+        if (cap.substr(0, 2) != "1-" || cap.rfind('-') <= 1) { error = capability_field + " has invalid format"; return false; }
         s.pump_installed[p] = true;
         const auto split = cap.rfind('-');
         if (!number(cap.substr(2, split - 2), s.pump_speed_type[p]) || s.pump_speed_type[p] < 0)
-            return fail("invalid pump speed type");
+            { error = capability_field + " speed type is not a non-negative integer"; return false; }
         auto modes = cap.substr(split + 1);
-        if (modes.empty()) return fail("empty pump modes");
+        if (modes.empty()) { error = capability_field + " mode list is empty"; return false; }
         for (char c : modes) {
-            if (c < '0' || c > '9') return fail("invalid pump mode");
+            if (c < '0' || c > '9') { error = capability_field + " contains a non-digit mode"; return false; }
             if (c > '4') s.pump_unknown_modes[p] = true;
             else s.pump_modes[p] |= 1u << (c - '0');
         }

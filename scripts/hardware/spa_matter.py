@@ -31,7 +31,7 @@ ATTRIBUTES = {
     0x202: {0: 'FanMode', 1: 'FanModeSequence', 2: 'PercentSetting',
             3: 'PercentCurrent', 4: 'SpeedMax', 5: 'SpeedSetting', 6: 'SpeedCurrent'},
     0x6: {0: 'OnOff'},
-    0x50: {0: 'Description', 3: 'CurrentMode'},
+    0x50: {0: 'Description', 2: 'SupportedModes', 3: 'CurrentMode'},
 }
 
 
@@ -100,7 +100,7 @@ def parse_report(output, req, returncode):
         return {'status': 'failed', 'reason': 'Unrecognised attribute value'}
     text = body[0][len(label) + 2:]
     count = re.fullmatch(r'(\d+) entries', text)
-    if not count and label in ('AttributeList', 'DeviceTypeList', 'ServerList', 'PartsList'):
+    if not count and label in ('AttributeList', 'DeviceTypeList', 'ServerList', 'PartsList', 'SupportedModes'):
         return {'status': 'failed', 'reason': 'Expected an attribute list'}
     if not count:
         value = scalar(text)
@@ -115,7 +115,14 @@ def parse_report(output, req, returncode):
     if expected > 512 or any('truncated' in line.lower() for line in body):
         return {'status': 'failed', 'reason': 'Invalid or oversized attribute list'}
     values = []
-    if label == 'DeviceTypeList':
+    if label == 'SupportedModes':
+        for line in body[1:]:
+            mode = re.fullmatch(r'Mode: (\d+)', line)
+            if mode:
+                values.append(int(mode[1]))
+        if len(set(values)) != len(values) or any(value > 255 for value in values):
+            return {'status': 'failed', 'reason': 'Invalid supported modes'}
+    elif label == 'DeviceTypeList':
         entries = [i for i, line in enumerate(body) if re.fullmatch(r'\[\d+\]: \{', line)]
         for number, index in enumerate(entries, 1):
             if body[index] != f'[{number}]: {{':
@@ -176,21 +183,27 @@ def bounded_child():
 def remote_read(req):
     """Pi-only worker. It never commissions or creates controller storage."""
     req = request(**req)
-    with controller(req) as (state, storage, binary):
-        argv = [str(binary), 'any', 'read-by-id', str(req['cluster']), str(req['attribute']),
-                str(req['node']), str(req['endpoint']), '--storage-directory', str(storage),
-                '--commissioner-name', 'alpha', '--timeout', '15']
+    with controller(req) as context:
+        return read_locked(req, context)
 
-        with tempfile.TemporaryFile(dir=state) as output:
-            try:
-                completed = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=output,
-                                           stderr=subprocess.STDOUT, timeout=22,
-                                           preexec_fn=bounded_child, check=False)
-            except subprocess.TimeoutExpired:
-                return {'status': 'failed', 'reason': 'Matter read exceeded 22 seconds'}
-            output.seek(0)
-            text = output.read(LIMIT + 1).decode('utf-8', errors='replace')
-            return parse_report(text, req, completed.returncode)
+
+def read_locked(req, context):
+    """Allowlisted read while a caller holds the existing controller lock."""
+    req = request(**req)
+    state, storage, binary = context
+    argv = [str(binary), 'any', 'read-by-id', str(req['cluster']), str(req['attribute']),
+            str(req['node']), str(req['endpoint']), '--storage-directory', str(storage),
+            '--commissioner-name', 'alpha', '--timeout', '15']
+    with tempfile.TemporaryFile(dir=state) as output:
+        try:
+            completed = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=output,
+                                       stderr=subprocess.STDOUT, timeout=22,
+                                       preexec_fn=bounded_child, check=False)
+        except subprocess.TimeoutExpired:
+            return {'status': 'failed', 'reason': 'Matter read exceeded 22 seconds'}
+        output.seek(0)
+        text = output.read(LIMIT + 1).decode('utf-8', errors='replace')
+        return parse_report(text, req, completed.returncode)
 
 
 def remote_subscribe(req):

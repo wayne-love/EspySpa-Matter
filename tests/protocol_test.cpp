@@ -43,6 +43,12 @@ int main(int argc, char **argv) {
     auto replace = [&](const std::string &from, const std::string &to) {
         auto raw = fixture; auto p = raw.find(from); CHECK(p != raw.npos); raw.replace(p, from.size(), to); return raw;
     };
+    auto bad_water = replace(",1,1,0,366,0,28,", ",1,1,0,9999,0,28,");
+    CHECK(!spa::parse(bad_water, s, error));
+    CHECK(error == "R5 field[15] is outside the supported range 0..600");
+    auto bad_setpoint = replace(",380,", ",oops,");
+    CHECK(!spa::parse(bad_setpoint, s, error));
+    CHECK(error == "R6 field[8] is not a valid integer");
     invalid(replace(",380,", ",oops,")); invalid(replace(",380,", ",380x,"));
     invalid(replace(",366,0,28,", ",9999,0,28,"));
     invalid(replace("1-1-014", "1-1-01x"));

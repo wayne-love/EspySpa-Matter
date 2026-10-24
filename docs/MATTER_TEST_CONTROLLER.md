@@ -1,5 +1,8 @@
 # Raspberry Pi Matter test controller
 
+The optional [explicit Matter write companion](MATTER_WRITES.md) uses this same
+identity and storage. `spa-matter` itself remains read-only.
+
 This controller adds a dedicated test fabric alongside Apple Home over the
 existing IP/Thread connection. It does not provide another Thread border router.
 Never reset eSpa, erase controller storage, change Thread credentials, remove
