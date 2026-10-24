@@ -243,6 +243,10 @@ rollback to an identical version for success. `image_confirmed_valid` requires
 HTTP VALID state or a fresh application confirmation marker. None of these
 alone proves spa RF health. `application_health` reports `healthy`, `unhealthy`
 or `unknown`; available diagnostics also compare channels and fabric counts.
+Health is assessed from the current poll. If diagnostics become unavailable,
+earlier healthy evidence is cleared to unknown even when serial logs confirm the
+new image. With HTTP configured, observation continues until current healthy
+diagnostics return or the observation timeout produces incomplete verification.
 
 Exit 0 means dry-run passed, or flash/boot/validity/service restoration succeeded
 and configured HTTP health passed (serial-only health can remain unknown).
@@ -319,8 +323,8 @@ the configured Pi. Dry-run reported the existing development version and active
 logger, and explicitly deferred all device-mode/flash checks. No firmware build,
 flash, ESP32 reset, logging interruption or sudoers change was performed.
 The logger remained active with the same PID before and after dry-run. The full
-Python suite completed 91 cases: 90 passed and the optional pinned-esptool test
-was skipped in the standard environment. All 20 updater cases, including that integration case,
+Python suite completed 95 cases: 94 passed and the optional pinned-esptool test
+was skipped in the standard environment. All 24 updater cases, including that integration case,
 passed in the isolated esptool 4.8.1 environment. Both g++ and clang++ host suites
 and whitespace checks passed.
 Automatic/manual USB entry/return, service privilege rules, actual flash reads,

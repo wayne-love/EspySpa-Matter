@@ -396,6 +396,48 @@ class SerialUpdateTests(unittest.TestCase):
         self.assertTrue(result['fabric_count_preserved'] and result['update_channel_preserved'])
         self.assertEqual(result['application_health'], 'healthy')
 
+    def test_observation_drops_previous_health_when_http_fails_before_confirmation(self):
+        startup = 'App version: 1.2.3\nStarting EspySpa-Matter on ESP32-C6\n'
+        pending = {'version': '1.2.3', 'partition': 'ota_0', 'ota_state': u.PENDING,
+                   'image_channel': 'release', 'update_channel': 'development'}
+        for connected in (True, False):
+            with self.subTest(spa_connected=connected):
+                host = u.Host({'diagnostics_url': 'http://host/api/diagnostics', 'spa_connected': connected})
+                diag = {'fresh': connected, 'thread': {'role': 3}, 'matter': {'fabric_count': 3}}
+                with patch.object(host, 'logs_since', side_effect=[startup, startup + 'OTA image marked valid\n']), patch.object(host, 'http', side_effect=[pending, diag, None, None]) as http, patch.object(u.time, 'sleep') as sleep, patch.object(u.time, 'monotonic', side_effect=[0, 1, 2, 91]):
+                    result = host.observe({'version': '1.2.3', 'image_channel': 'release'}, {'target_slot': 0},
+                                          {'version': '0.9.0', 'update_channel': 'development', 'fabric_count': 3}, (1, 0))
+                self.assertTrue(result['boot_verified'] and result['image_confirmed_valid'])
+                self.assertEqual(result['application_health'], 'unknown')
+                self.assertEqual(http.call_count, 4)
+                self.assertEqual(sleep.call_count, 2)
+
+    def test_observation_waits_for_current_http_health_after_recovery(self):
+        startup = 'App version: 1.2.3\nStarting EspySpa-Matter on ESP32-C6\n'
+        pending = {'version': '1.2.3', 'partition': 'ota_0', 'ota_state': u.PENDING,
+                   'image_channel': 'release', 'update_channel': 'development'}
+        valid = dict(pending, ota_state=u.VALID)
+        diag = {'fresh': True, 'thread': {'role': 3}, 'matter': {'fabric_count': 3}}
+        host = u.Host({'diagnostics_url': 'http://host/api/diagnostics', 'spa_connected': True})
+        confirmed = startup + 'OTA image marked valid\n'
+        with patch.object(host, 'logs_since', side_effect=[startup, confirmed, confirmed]), patch.object(host, 'http', side_effect=[pending, diag, None, None, valid, diag]) as http, patch.object(u.time, 'sleep') as sleep, patch.object(u.time, 'monotonic', side_effect=[0, 1, 2, 3]):
+            result = host.observe({'version': '1.2.3', 'image_channel': 'release'}, {'target_slot': 0},
+                                  {'version': '0.9.0', 'update_channel': 'development', 'fabric_count': 3}, (1, 0))
+        self.assertTrue(result['boot_verified'] and result['image_confirmed_valid'])
+        self.assertEqual(result['application_health'], 'healthy')
+        self.assertEqual(http.call_count, 6)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_serial_only_confirmation_keeps_http_health_unknown(self):
+        host = u.Host({'diagnostics_url': '', 'spa_connected': True})
+        logs = 'App version: 1.2.3\nStarting EspySpa-Matter on ESP32-C6\nOTA image marked valid\n'
+        with patch.object(host, 'logs_since', return_value=logs), patch.object(host, 'http', return_value=None), patch.object(u.time, 'sleep') as sleep, patch.object(u.time, 'monotonic', side_effect=[0, 1]):
+            result = host.observe({'version': '1.2.3', 'image_channel': 'release'}, {'target_slot': 0},
+                                  {'version': '0.9.0'}, (1, 0))
+        self.assertTrue(result['boot_verified'] and result['image_confirmed_valid'])
+        self.assertEqual(result['application_health'], 'unknown')
+        sleep.assert_not_called()
+
     def test_esptool_python_operations_with_memory_only_fake_chip(self):
         try:
             import esptool
@@ -465,6 +507,23 @@ class SerialUpdateTests(unittest.TestCase):
             self.assertTrue(payload['dry_run'])
             self.assertEqual(payload['options']['diagnostics_url'], cfg['diagnostics_url'])
             self.assertEqual(run.call_args.kwargs['timeout'], 660)
+
+    def test_cli_requires_known_health_when_http_is_configured(self):
+        tool_spec = importlib.util.spec_from_file_location('spa_toolkit', ROOT / 'scripts/hardware/spa_toolkit.py')
+        toolkit = importlib.util.module_from_spec(tool_spec);tool_spec.loader.exec_module(toolkit)
+        with tempfile.TemporaryDirectory() as directory:
+            for name, data in files().items():(Path(directory) / name).write_bytes(data)
+            for url, health, expected in (('http://test.invalid/api/diagnostics', 'unknown', 1),
+                                         ('http://test.invalid/api/diagnostics', 'healthy', 0),
+                                         ('', 'unknown', 0)):
+                with self.subTest(url=url, health=health):
+                    cfg = dict(ssh_host='test.invalid', ssh_user='tester', ssh_key='/tmp/example-key',
+                               diagnostics_url=url, log_path='/var/log/espyspa/serial.log')
+                    result = {'image_confirmed_valid': True, 'boot_verified': True,
+                              'service_restored': True, 'application_health': health}
+                    completed = subprocess.CompletedProcess([], 0, json.dumps(result).encode(), b'')
+                    with patch.dict(sys.modules, {'spa_toolkit': toolkit}), patch.object(toolkit, 'config', return_value=cfg), patch.object(toolkit, 'hardware_env', return_value={}), patch.object(u.subprocess, 'run', return_value=completed), patch.dict(os.environ, {}, clear=True), contextlib.redirect_stdout(io.StringIO()):
+                        self.assertEqual(u.main([directory]), expected)
 
 
 if __name__ == '__main__':

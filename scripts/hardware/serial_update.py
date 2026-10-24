@@ -347,6 +347,9 @@ class Host:
             serial_version = package['version'] in versions
             firmware = self.http('/api/firmware')
             diagnostics = self.http('/api/diagnostics')
+            # Health describes this poll, not an earlier pending-image sample.
+            # Serial confirmation cannot substitute for configured HTTP health.
+            result['application_health'] = 'unknown'
             if firmware:
                 result['version_after'] = firmware.get('version')
                 expected = firmware.get('version') == package['version'] and firmware.get('partition') == 'ota_' + str(plan['target_slot'])

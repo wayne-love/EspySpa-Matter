@@ -80,6 +80,11 @@ against an in-memory fake chip in an isolated optional test environment. A real
 SSH dry-run passed without serial access or service changes. No physical update
 was performed during implementation; existing host suites remain required.
 
+Post-boot health is recomputed for each poll, so HTTP loss after a healthy pending
+image cannot be masked by a later serial confirmation marker. Regression cases
+cover loss until timeout in both spa-connection modes, recovery before timeout,
+and serial-only confirmation with health explicitly unknown.
+
 - [Serial setup, exact commands, verification and recovery](../SERIAL_UPDATES.md)
 - [Existing OTA and rollback](../OTA.md)
 - [Pinned IDF otatool](https://github.com/espressif/esp-idf/blob/v5.4.1/components/app_update/otatool.py)
